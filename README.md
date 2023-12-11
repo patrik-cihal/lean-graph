@@ -2,6 +2,8 @@
 
 Visualization of dependencies for any theorem/definitions in your Lean project.
 
+![](example-pic.png)
+
 ## How to use
 
 1. Copy the get_graph_meta.lean into your project folder

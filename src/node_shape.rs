@@ -54,7 +54,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<NodePayload, E, Ty, Ix>
             true => ctx.ctx.style().visuals.widgets.active,
             false => ctx.ctx.style().visuals.widgets.inactive,
         };
-        let color = if ctx.ctx.style().visuals.dark_mode { col_ft(self.color.map(|x| 1.-x)) } else { col_ft(self.color)};
+        let color = if ctx.ctx.style().visuals.dark_mode { col_ft(self.color.map(|x| 1.-2.*x)) } else { col_ft(self.color)};
         let text_color = style.text_color();
 
         let center = ctx.meta.canvas_to_screen_pos(self.pos);
