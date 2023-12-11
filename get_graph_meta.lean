@@ -31,9 +31,7 @@ structure BFSState :=
   (g : HashMap Name (List Name))
   (outerLayer : List Name)
 
-def getUsedConstantGraph (s : MetaM Syntax) : TermElabM (List (Name × List Name)) := do
-  let expr ← getExpr s
-  let name := expr.constName!
+def getUsedConstantGraph (name : Name) : TermElabM (List (Name × List Name)) := do
 
   -- make bfs from the specified root node
 
@@ -93,9 +91,22 @@ def serializeList (l : List (Name × List Name)) : TermElabM Json := do
   let res ← (l.mapM pairToJson)
   return Json.arr res.toArray
 
-def serializeAndWriteToFile := do
-  let g ← getUsedConstantGraph `(Nat.add_comm)
-  let js ←  serializeList g
-  let kk ← writeJsonToFile "add_comm.json" js
+def serializeAndWriteToFile (s : MetaM Syntax) := do
+  let expr ← getExpr s
+  let name := expr.constName!
 
-#eval serializeAndWriteToFile
+  let g ← getUsedConstantGraph name
+  let js ←  serializeList g
+  let _ ← writeJsonToFile ((toString name).append ".json") js
+
+
+
+
+
+
+
+
+
+-- In the line below, specify the constant and uncomment it to get the JSON file
+
+#eval serializeAndWriteToFile `(Nat.zero_add)
