@@ -7,6 +7,14 @@ def getExpr (x : MetaM Syntax) : TermElabM Expr := do
   let synt ← x
   elabTerm synt none
 
+def getConstType (n : Name) : TermElabM String := do
+  let constInfo ← getConstInfo n
+  return match constInfo with
+    | ConstantInfo.defnInfo _ => "Definition"
+    | ConstantInfo.thmInfo _  => "Theorem"
+    | ConstantInfo.axiomInfo _ => "Axiom"
+    | _ => "Other"
+
 def getConstantBody (n : Name) : MetaM (Option Expr) := do
   let constInfo ← getConstInfo n
   let constValue := constInfo.value?
@@ -74,19 +82,20 @@ def nameToString (n : Name) : String :=
   toString n
 
 -- Convert a Name and List Name pair to JSON
-def pairToJson (pair : Name × List Name) : Json :=
+def pairToJson (pair : Name × List Name) : TermElabM Json := do
   let nameStr := nameToString pair.fst
+  let typeStr ← (getConstType pair.fst)
   let nameListStr := pair.snd.map nameToString
-  Json.mkObj [("name", Json.str nameStr), ("references", Json.arr (nameListStr.map Json.str).toArray)]
+  return Json.mkObj [("name", Json.str nameStr),("constType", Json.str typeStr), ("references", Json.arr (nameListStr.map Json.str).toArray)]
 
 -- Serialize a List (Name, List Name) to JSON
-def serializeList (l : List (Name × List Name)) : Json :=
-  Json.arr (l.map pairToJson).toArray
-
+def serializeList (l : List (Name × List Name)) : TermElabM Json := do
+  let res ← (l.mapM pairToJson)
+  return Json.arr res.toArray
 
 def serializeAndWriteToFile := do
   let g ← getUsedConstantGraph `(Nat.add_comm)
-  let js := serializeList g
+  let js ←  serializeList g
   let kk ← writeJsonToFile "add_comm.json" js
 
 #eval serializeAndWriteToFile

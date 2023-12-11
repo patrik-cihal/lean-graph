@@ -1,8 +1,10 @@
-use egui::{Pos2, Vec2, Shape, epaint::{CircleShape, TextShape}, Stroke, FontId, FontFamily};
+use std::f32::consts::PI;
+
+use egui::{Pos2, Vec2, Shape, epaint::{CircleShape, TextShape, RectShape}, Stroke, FontId, FontFamily, Color32};
 use egui_graphs::{NodeProps, DisplayNode, DrawContext, DefaultNodeShape};
 use petgraph::{EdgeType, stable_graph::IndexType};
 
-use crate::NodePayload;
+use crate::{NodePayload, col_ft, ConstType};
 
 #[derive(Clone, Debug)]
 pub struct NodeShape {
@@ -11,9 +13,11 @@ pub struct NodeShape {
     pub selected: bool,
 
     pub name: String,
+    const_type: ConstType,
 
     /// Shape defined property
     pub radius: f32,
+    color: [f32; 3]
 }
 
 impl From<NodeProps<NodePayload>> for NodeShape {
@@ -23,7 +27,9 @@ impl From<NodeProps<NodePayload>> for NodeShape {
             selected: node_props.selected,
             name: node_props.payload.name,
 
-            radius: 5.0,
+            radius: 10.,
+            color: node_props.payload.color,
+            const_type: node_props.payload.const_type
         }
     }
 }
@@ -48,30 +54,46 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<NodePayload, E, Ty, Ix>
             true => ctx.ctx.style().visuals.widgets.active,
             false => ctx.ctx.style().visuals.widgets.inactive,
         };
-        let color = style.fg_stroke.color;
+        let color = if ctx.ctx.style().visuals.dark_mode { col_ft(self.color.map(|x| 1.-x)) } else { col_ft(self.color)};
+        let text_color = style.text_color();
 
-        let circle_center = ctx.meta.canvas_to_screen_pos(self.pos);
-        let circle_radius = ctx.meta.canvas_to_screen_size(self.radius);
-        let circle_shape = CircleShape {
-            center: circle_center,
-            radius: circle_radius,
-            fill: color,
-            stroke: Stroke::default(),
+        let center = ctx.meta.canvas_to_screen_pos(self.pos);
+        let radius = ctx.meta.canvas_to_screen_size(self.radius);
+        let get_n_polygon = |n: usize| {
+            let step = 2.*PI / n as f32;
+            (0..n).map(|i| {
+                let ang = i as f32*step;
+                let dir = Vec2::angled(ang);
+                Pos2::from(center + dir*radius)
+            }).collect::<Vec<_>>()
         };
-        res.push(circle_shape.into());
+        let no_stroke = Stroke::new(0., color);
+        let shape = match self.const_type {
+            ConstType::Theorem => Shape::convex_polygon(get_n_polygon(5), color, no_stroke),
+            ConstType::Definition => Shape::convex_polygon(get_n_polygon(3), color, no_stroke),
+            ConstType::Axiom => CircleShape {
+                center,
+                radius,
+                fill: color,
+                stroke: Stroke::default(),
+            }.into(),
+            ConstType::Other => Shape::convex_polygon(get_n_polygon(4), color, no_stroke),
+        };
+        
+        res.push(shape.into());
 
         let galley = ctx.ctx.fonts(|f| {
             f.layout_no_wrap(
                 self.name.clone(),
-                FontId::new(circle_radius, FontFamily::Monospace),
-                color,
+                FontId::new(radius, FontFamily::Monospace),
+                text_color,
             )
         });
 
         // display label centered over the circle
         let label_pos = Pos2::new(
-            circle_center.x - galley.size().x / 2.,
-            circle_center.y - circle_radius * 2.,
+            center.x - galley.size().x / 2.,
+            center.y - radius * 2.,
         );
 
         let label_shape = TextShape::new(label_pos, galley);
@@ -85,6 +107,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<NodePayload, E, Ty, Ix>
         self.pos = state.location;
         self.selected = state.selected;
         self.name = state.payload.name.clone();
+        self.color = state.payload.comp_color();
     }
 }
 
