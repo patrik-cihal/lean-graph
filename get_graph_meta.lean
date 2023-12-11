@@ -102,11 +102,6 @@ def serializeAndWriteToFile (s : MetaM Syntax) := do
 
 
 
+-- In the line below, replace `Nat.add_comm` with your name and uncomment it to get the JSON file
 
-
-
-
-
--- In the line below, specify the constant and uncomment it to get the JSON file
-
-#eval serializeAndWriteToFile `(Nat.zero_add)
+-- #eval serializeAndWriteToFile `(Nat.zero_add)

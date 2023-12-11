@@ -4,9 +4,10 @@ mod edge_shape;
 
 use node_shape::NodeShape;
 use edge_shape::EdgeShape;
+use rfd::FileDialog;
 
 
-use std::{fs, error::Error, collections::BTreeMap, time::Instant};
+use std::{fs, error::Error, collections::BTreeMap, time::Instant, path::PathBuf};
 
 use eframe::{CreationContext, App};
 use egui::{Pos2, Vec2, ahash::HashMap, Slider, Color32};
@@ -92,7 +93,10 @@ pub struct MApp {
 
 impl MApp {
     pub fn new(_: &CreationContext<'_>) -> Self {
-        let g = load_graph("add_comm.json");
+        let file_path = FileDialog::new()
+            .add_filter("json", &["json"])
+            .pick_file().unwrap();
+        let g = load_graph(file_path);
         Self { g, last_update: None, force_settings: Default::default() }
     }
     fn color_nodes(&mut self) {
@@ -193,7 +197,7 @@ impl App for MApp {
     }
 }
 
-fn load_graph(path: &str) -> G {
+fn load_graph(path: PathBuf) -> G {
     let nodes = serde_json::from_str::<Vec<NodeData>>(&fs::read_to_string(path).unwrap()).unwrap();
     let mut sg = StableGraph::new();
 
