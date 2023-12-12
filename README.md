@@ -27,3 +27,5 @@ Ideal case:
 - Lazy loading of depending nodes
 - Publishing on the web
 - Option to visualize any Mathlib constant, without the need of running script locally
+
+If you want to see these features, any contribution is welcome.
