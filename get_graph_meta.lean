@@ -79,6 +79,7 @@ def writeJsonToFile (filePath : String) (json : Json) : IO Unit := do
 def nameToString (n : Name) : String :=
   toString n
 
+
 -- Convert a Name and List Name pair to JSON
 def pairToJson (pair : Name × List Name) : TermElabM Json := do
   let nameStr := nameToString pair.fst
@@ -90,6 +91,7 @@ def pairToJson (pair : Name × List Name) : TermElabM Json := do
 def serializeList (l : List (Name × List Name)) : TermElabM Json := do
   let res ← (l.mapM pairToJson)
   return Json.arr res.toArray
+
 
 def serializeAndWriteToFile (s : MetaM Syntax) := do
   let expr ← getExpr s

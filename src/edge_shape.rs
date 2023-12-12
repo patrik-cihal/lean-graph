@@ -68,7 +68,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
             false => ctx.ctx.style().visuals.widgets.inactive,
         };
         let mut color = if ctx.ctx.style().visuals.dark_mode { col_ft(start.payload().comp_color().map(|x| 1.-2.*x)) } else {col_ft(start.payload().comp_color())};
-        color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if start.selected() { 230 } else { 50 });
+        color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if end.selected() { 230 } else { 50 });
 
         if start.id() == end.id() {
             // draw loop

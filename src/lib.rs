@@ -20,7 +20,7 @@ fn col_ft(c: [f32; 3]) -> Color32 {
     Color32::from_rgb((c[0]*256.) as u8, (c[1] * 256.) as u8, (c[2] * 256.) as u8)
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
 enum ConstType {
     Theorem,
     Definition,
@@ -83,10 +83,26 @@ impl Default for ForceSettings {
     }
 }
 
+struct ColoringSettings {
+    reach: usize
+}
+
+impl Default for ColoringSettings {
+    fn default() -> Self {
+        Self {
+            reach: 3
+        }
+    }
+}
+
 pub struct MApp {
     g: G,
+    fg: G,
     last_update: Option<Instant>,
-    force_settings: ForceSettings
+    force_settings: ForceSettings,
+    node_type_filter: BTreeMap<ConstType, bool>,
+    outer_edge_cnt_filter: usize,
+    coloring_settings: ColoringSettings
 }
 
 
@@ -97,26 +113,32 @@ impl MApp {
             .add_filter("json", &["json"])
             .pick_file().unwrap();
         let g = load_graph(file_path);
-        Self { g, last_update: None, force_settings: Default::default() }
+        let mut node_type_filter = BTreeMap::new();
+
+        node_type_filter.insert(ConstType::Axiom, true);
+        node_type_filter.insert(ConstType::Definition, true);
+        node_type_filter.insert(ConstType::Theorem, true);
+        node_type_filter.insert(ConstType::Other, false);
+
+        Self { g: g.clone(), last_update: None, force_settings: Default::default(), node_type_filter, fg: g, outer_edge_cnt_filter:10, coloring_settings: Default::default() }
     }
     fn color_nodes(&mut self) {
-        let node_indices = self.g.g.node_indices().collect::<Vec<_>>();
+        let node_indices = self.fg.g.node_indices().collect::<Vec<_>>();
         for &ni in &node_indices {
-            self.g.g[ni].payload_mut().comp_color = Default::default();
+            self.fg.g[ni].payload_mut().comp_color = Default::default();
         }
 
         for &ni in &node_indices {
-            let color = self.g.g.node_weight(ni).unwrap().payload().color;
-            const BFS_LEN: usize = 3;
+            let color = self.fg.g.node_weight(ni).unwrap().payload().color;
             let mut stack = vec![ni];
-            for i in 0..BFS_LEN {
+            for i in 0..self.coloring_settings.reach {
                 let mut nstack = vec![];
                 for cni in stack {
-                    let pow = 1./(1<<i) as f32 * if self.g.g[ni].selected() { 3. } else { 1. };
-                    let comp_color = self.g.g[cni].payload().comp_color;
-                    self.g.g[cni].payload_mut().comp_color = ([comp_color.0[0] + pow * color[0], comp_color.0[1] + pow * color[1], comp_color.0[2] + pow * color[2]], comp_color.1 + pow);
+                    let pow = 1./(1<<i) as f32 * if self.fg.g[ni].selected() { 3. } else { 1. };
+                    let comp_color = self.fg.g[cni].payload().comp_color;
+                    self.fg.g[cni].payload_mut().comp_color = ([comp_color.0[0] + pow * color[0], comp_color.0[1] + pow * color[1], comp_color.0[2] + pow * color[2]], comp_color.1 + pow);
                     
-                    for &oni in &self.g.g.neighbors(cni).collect::<Vec<_>>() {
+                    for &oni in &self.fg.g.neighbors(cni).collect::<Vec<_>>() {
                         nstack.push(oni);
                     }
                 }
@@ -125,10 +147,10 @@ impl MApp {
         }
     }
     fn simulate_force_graph(&mut self, dt: f32) {
-        let indices = self.g.g.node_indices().collect::<Vec<_>>();
+        let indices = self.fg.g.node_indices().collect::<Vec<_>>();
 
         let neighbors = indices.iter().map(|&ind| {
-            let neigh = self.g.g.neighbors(ind).collect::<Vec<_>>();
+            let neigh = self.fg.g.neighbors(ind).collect::<Vec<_>>();
             (ind, neigh)
         }).collect::<HashMap<_, _>>();
 
@@ -137,8 +159,8 @@ impl MApp {
                 if ni == oni {
                     continue;
                 }
-                let pos = self.g.node(ni).unwrap().location();
-                let opos = self.g.node(oni).unwrap().location();
+                let pos = self.fg.node(ni).unwrap().location();
+                let opos = self.fg.node(oni).unwrap().location();
 
                 let dir = opos-pos;
                 let dis = dir.length();
@@ -153,9 +175,9 @@ impl MApp {
 
                 let tot_acc = bacc+racc + if neighbors[&ni].contains(&oni) { eacc } else {0.};
 
-                let cvel = self.g.node_mut(ni).unwrap().payload().vel;
-                self.g.node_mut(ni).unwrap().payload_mut().vel = cvel - (cvel*self.force_settings.stiffness*dt) + tot_acc * dt * dir;
-                self.g.node_mut(ni).unwrap().set_location(pos + cvel * dt);
+                let cvel = self.fg.node_mut(ni).unwrap().payload().vel;
+                self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel - (cvel*self.force_settings.stiffness*dt) + tot_acc * dt * dir;
+                self.fg.node_mut(ni).unwrap().set_location(pos + cvel * dt);
             }
         }
     } 
@@ -172,25 +194,58 @@ impl MApp {
 
             let style_settings = &SettingsStyle::new().with_labels_always(true);
             let navigations_settings = &SettingsNavigation::new().with_zoom_and_pan_enabled(true).with_fit_to_screen_enabled(false);
-            ui.add(&mut GraphView::new(&mut self.g).with_styles(style_settings).with_navigations(navigations_settings).with_interactions(interaction_settings));
+            
+            ui.add(&mut GraphView::new(&mut self.fg).with_styles(style_settings).with_navigations(navigations_settings).with_interactions(interaction_settings));
         });
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
-            ui.label("Edge force");
-            ui.add(Slider::new(&mut self.force_settings.e_force, (0.000001)..=(0.001)));
-            ui.label("Bounding force");
-            ui.add(Slider::new(&mut self.force_settings.b_force, (0.000001)..=(0.1)));
-            ui.label("Repulsive force");
-            ui.add(Slider::new(&mut self.force_settings.r_force, (10.)..=(1000.)));
-            ui.label("Stifness");
-            ui.add(Slider::new(&mut self.force_settings.stiffness, (0.)..=1.));
+            ui.collapsing("Force simulation settings", |ui| {
+                ui.label("Edge attraction");
+                ui.add(Slider::new(&mut self.force_settings.e_force, (0.000001)..=(0.001)));
+                ui.label("General ounding");
+                ui.add(Slider::new(&mut self.force_settings.b_force, (0.000001)..=(0.1)));
+                ui.label("Repulsion");
+                ui.add(Slider::new(&mut self.force_settings.r_force, (10.)..=(1000.)));
+                ui.label("Stifness");
+                ui.add(Slider::new(&mut self.force_settings.stiffness, (0.)..=1.));
+            });
+            ui.collapsing("Coloring settings", |ui| {
+                ui.label("Node color spill reach");
+                ui.add(Slider::new(&mut self.coloring_settings.reach, 0..=10));
+            });
+
+            ui.collapsing("Filter", |ui| {
+                ui.checkbox(self.node_type_filter.get_mut(&ConstType::Axiom).unwrap(), "Axioms");
+                ui.checkbox(self.node_type_filter.get_mut(&ConstType::Theorem).unwrap(), "Theorems");
+                ui.checkbox(self.node_type_filter.get_mut(&ConstType::Definition).unwrap(), "Definitions");
+                ui.checkbox(self.node_type_filter.get_mut(&ConstType::Other).unwrap(), "Other");
+                ui.add(Slider::new(&mut self.outer_edge_cnt_filter, 1..=1000));
+            });
         });
+    }
+
+    fn update_filter_graph(&mut self) {
+        for &ni in &self.fg.g.node_indices().collect::<Vec<_>>() {
+            let cur_node = self.fg.g[ni].clone();
+            *self.g.g.node_weight_mut(ni).unwrap() = cur_node;
+        }
+        self.fg = G::new(self.g.g.filter_map(|ni, node| {
+            if self.node_type_filter[&node.payload().const_type] && self.g.g.neighbors(ni).count() <= self.outer_edge_cnt_filter {
+                Some(node.clone())
+            }
+            else {
+                None
+            }
+        }, |_, edge|{
+            Some(edge.clone())
+        }));
     }
 }
 
 impl App for MApp {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         let dt = self.last_update.unwrap_or(Instant::now()).elapsed().as_secs_f32();
-        self.simulate_force_graph(dt);
+        self.update_filter_graph();
+        self.simulate_force_graph(dt/10.);
         self.color_nodes();
         self.last_update = Some(Instant::now());
         self.draw_ui(ctx);
@@ -202,17 +257,21 @@ fn load_graph(path: PathBuf) -> G {
     let mut sg = StableGraph::new();
 
 
+    let spawn_radius = (nodes.len() as f32).sqrt()*1000.;
+
     let nodes = nodes.into_iter().map(|node| {
         let ind =  sg.add_node(Node::new(NodePayload::from(&node)).with_label(node.name.clone()));
-        sg.node_weight_mut(ind).unwrap().bind(ind, random_location(200.));
+        sg.node_weight_mut(ind).unwrap().bind(ind, random_location(spawn_radius));
 
         (node.name.clone(), (ind, node))
     }).collect::<BTreeMap<String, (_, NodeData)>>();
 
     for (_, (ind, data)) in &nodes {
         for reference in &data.references {
-            let ind = sg.add_edge(*ind, nodes[reference].0, Edge::new(()));
-            sg.edge_weight_mut(ind).unwrap().bind(ind, 1);
+            if let Some(node) = nodes.get(reference) {
+                let ind = sg.add_edge(node.0,*ind, Edge::new(()));
+                sg.edge_weight_mut(ind).unwrap().bind(ind, 1);
+            }
         }
     }
 
