@@ -2,8 +2,8 @@
 
 Visualization of dependencies for any theorem/definitions in your Lean project.
 
-![](example-pic.png)
-![](fermat-last-theorem-4-example.png)
+![Zero add](example-pic.png)
+![Fermat last theorem four](fermat-last-theorem-4-example.png)
 
 ## How to use
 
