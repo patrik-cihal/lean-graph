@@ -42,7 +42,8 @@ struct NodePayload {
     vel: Vec2,
     color: [f32; 3],
     comp_color: ([f32; 3], f32),
-    const_type: ConstType
+    const_type: ConstType,
+    size: f32
 }
 
 impl From<&NodeData> for NodePayload {
@@ -52,7 +53,8 @@ impl From<&NodeData> for NodePayload {
             const_type: value.const_type.clone(),
             color: [0.; 3].map(|_| random::<f32>()/ 3.),
             comp_color: Default::default(),
-            vel: Vec2::ZERO
+            vel: Vec2::ZERO,
+            size: ((value.references.len()+1) as f32).sqrt()
         }
     }
 }
@@ -60,6 +62,9 @@ impl From<&NodeData> for NodePayload {
 impl NodePayload {
     pub fn comp_color(&self) -> [f32; 3] {
         self.comp_color.0.map(|x| x/self.comp_color.1)
+    }
+    pub fn mass(&self) -> f32 {
+        self.size
     }
 }
 
@@ -78,7 +83,7 @@ impl Default for ForceSettings {
             b_force: 0.002,
             r_force: 400.,
             e_force: 0.001,
-            stiffness: 0.2
+            stiffness: 1.
         }
     }
 }
@@ -166,14 +171,17 @@ impl MApp {
                 let dis = dir.length();
                 let dir = dir.normalized();
 
+
                 let bacc = (self.force_settings.b_force * dis * dis);
                 let bacc = bacc.min(1.);
 
-                let racc = -(self.force_settings.r_force / dis);
+                let racc = -(self.force_settings.r_force / (dis.sqrt()));
 
                 let eacc = self.force_settings.e_force * dis * dis;
 
-                let tot_acc = bacc+racc + if neighbors[&ni].contains(&oni) { eacc } else {0.};
+                let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
+
+                let tot_acc = mr * (bacc+racc + if neighbors[&ni].contains(&oni) { eacc } else {0.});
 
                 let cvel = self.fg.node_mut(ni).unwrap().payload().vel;
                 self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel - (cvel*self.force_settings.stiffness*dt) + tot_acc * dt * dir;
@@ -218,6 +226,7 @@ impl MApp {
                 ui.checkbox(self.node_type_filter.get_mut(&ConstType::Theorem).unwrap(), "Theorems");
                 ui.checkbox(self.node_type_filter.get_mut(&ConstType::Definition).unwrap(), "Definitions");
                 ui.checkbox(self.node_type_filter.get_mut(&ConstType::Other).unwrap(), "Other");
+                ui.label("Max node in-degree");
                 ui.add(Slider::new(&mut self.outer_edge_cnt_filter, 1..=1000));
             });
         });

@@ -27,7 +27,7 @@ impl From<NodeProps<NodePayload>> for NodeShape {
             selected: node_props.selected,
             name: node_props.payload.name,
 
-            radius: 10.,
+            radius: 10. * node_props.payload.size,
             color: node_props.payload.color,
             const_type: node_props.payload.const_type
         }

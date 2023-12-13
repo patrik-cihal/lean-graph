@@ -12,11 +12,11 @@ pub struct EdgeShape {
     pub order: usize,
     pub selected: bool,
 
-    pub width: f32,
-    pub tip_size: f32,
-    pub tip_angle: f32,
-    pub curve_size: f32,
-    pub loop_size: f32,
+    width: f32,
+    tip_size: f32,
+    tip_angle: f32,
+    curve_size: f32,
+    loop_size: f32,
 }
 
 impl<E: Clone> From<EdgeProps<E>> for EdgeShape {
@@ -24,7 +24,7 @@ impl<E: Clone> From<EdgeProps<E>> for EdgeShape {
         Self {
             order: edge.order,
             selected: edge.selected,
-
+            
             width: 2.,
             tip_size: 15.,
             tip_angle: std::f32::consts::TAU / 30.,
@@ -43,18 +43,8 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         end: &Node<NodePayload, E, Ty, Ix, D>,
         pos: egui::Pos2,
     ) -> bool {
-        if start.id() == end.id() {
-            return is_inside_loop(start, self, pos);
-        }
-
-        let pos_start = start.location();
-        let pos_end = end.location();
-
-        if self.order == 0 {
-            return is_inside_line(pos_start, pos_end, pos, self);
-        }
-
-        is_inside_curve(start, end, self, pos)
+        //unclickable
+        return false;
     }
 
     fn shapes(
@@ -70,10 +60,12 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         let mut color = if ctx.ctx.style().visuals.dark_mode { col_ft(start.payload().comp_color().map(|x| 1.-2.*x)) } else {col_ft(start.payload().comp_color())};
         color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if end.selected() { 230 } else { 50 });
 
+        let mp = start.payload().size.min(end.payload().size);
+
         if start.id() == end.id() {
             // draw loop
             let node_size = node_size(start);
-            let stroke = Stroke::new(self.width * ctx.meta.zoom, color);
+            let stroke = Stroke::new(self.width * ctx.meta.zoom * mp, color);
             return vec![shape_looped(
                 ctx.meta.canvas_to_screen_size(node_size),
                 ctx.meta.canvas_to_screen_pos(start.location()),
@@ -92,7 +84,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         let edge_start = start_connector_point;
         let edge_end = end_connector_point - self.tip_size * dir;
 
-        let stroke_edge = Stroke::new(self.width * ctx.meta.zoom, color);
+        let stroke_edge = Stroke::new(self.width*mp * ctx.meta.zoom, color);
         let stroke_tip = Stroke::new(0., color);
         if self.order == 0 {
             // draw straight edge
@@ -108,8 +100,8 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
                 return vec![line];
             }
 
-            let tip_start_1 = tip_end - self.tip_size * rotate_vector(dir, self.tip_angle);
-            let tip_start_2 = tip_end - self.tip_size * rotate_vector(dir, -self.tip_angle);
+            let tip_start_1 = tip_end - mp * self.tip_size * rotate_vector(dir, self.tip_angle);
+            let tip_start_2 = tip_end - mp * self.tip_size * rotate_vector(dir, -self.tip_angle);
 
             // draw tips for directed edges
 
@@ -130,12 +122,12 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         let dir_perpendicular = Vec2::new(-dir.y, dir.x);
         let center_point = (edge_start + edge_end.to_vec2()).to_vec2() / 2.;
         let control_point =
-            (center_point + dir_perpendicular * self.curve_size * self.order as f32).to_pos2();
+            (center_point + dir_perpendicular * mp * self.curve_size * self.order as f32).to_pos2();
 
         let tip_dir = (control_point - tip_end).normalized();
 
-        let arrow_tip_dir_1 = rotate_vector(tip_dir, self.tip_angle) * self.tip_size;
-        let arrow_tip_dir_2 = rotate_vector(tip_dir, -self.tip_angle) * self.tip_size;
+        let arrow_tip_dir_1 = rotate_vector(tip_dir, self.tip_angle) * mp * self.tip_size;
+        let arrow_tip_dir_2 = rotate_vector(tip_dir, -self.tip_angle) * mp * self.tip_size;
 
         let tip_start_1 = tip_end + arrow_tip_dir_1;
         let tip_start_2 = tip_end + arrow_tip_dir_2;
@@ -240,50 +232,6 @@ fn shape_curved(
     )
 }
 
-fn is_inside_loop<E: Clone, N: Clone, Ix: IndexType, Ty: EdgeType, D: DisplayNode<N, E, Ty, Ix>>(
-    node: &Node<N, E, Ty, Ix, D>,
-    e: &EdgeShape,
-    pos: Pos2,
-) -> bool {
-    let node_size = node_size(node);
-
-    let shape = shape_looped(node_size, node.location(), Stroke::default(), e);
-    is_point_on_cubic_bezier_curve(pos, shape, e.width)
-}
-
-fn is_inside_line(pos_start: Pos2, pos_end: Pos2, pos: Pos2, e: &EdgeShape) -> bool {
-    let distance = distance_segment_to_point(pos_start, pos_end, pos);
-    distance <= e.width
-}
-
-fn is_inside_curve<
-    N: Clone,
-    E: Clone,
-    Ty: EdgeType,
-    Ix: IndexType,
-    D: DisplayNode<N, E, Ty, Ix>,
->(
-    node_start: &Node<N, E, Ty, Ix, D>,
-    node_end: &Node<N, E, Ty, Ix, D>,
-    e: &EdgeShape,
-    pos: Pos2,
-) -> bool {
-    let pos_start = node_start.location();
-    let pos_end = node_end.location();
-
-    let size_start = node_size(node_start);
-    let size_end = node_size(node_end);
-
-    let shape = shape_curved(
-        pos_start,
-        pos_end,
-        size_start,
-        size_end,
-        Stroke::default(),
-        e,
-    );
-    is_point_on_quadratic_bezier_curve(pos, shape, e.width)
-}
 
 fn node_size<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>(
     node: &Node<N, E, Ty, Ix, D>,
