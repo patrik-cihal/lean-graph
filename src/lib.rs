@@ -80,7 +80,7 @@ struct ForceSettings {
 impl Default for ForceSettings {
     fn default() -> Self {
         Self {
-            b_force: 0.002,
+            b_force: 0.0005,
             r_force: 400.,
             e_force: 0.001,
             stiffness: 0.5
@@ -166,7 +166,7 @@ impl MApp {
 
         for &ni in &topo_sort {
             let color = self.fg.g.node_weight(ni).unwrap().payload().color;
-            let size = self.fg.g[ni].payload().size.powf(2.);
+            let size = self.fg.g[ni].payload().size;
             // add cur color to comp color
             let comp_color = self.fg.g[ni].payload_mut().comp_color;
             self.fg.g[ni].payload_mut().comp_color.0 =  [comp_color.0[0] + color[0]*size, comp_color.0[1]+color[1]*size, comp_color.0[2]+color[2]*size];
@@ -204,8 +204,7 @@ impl MApp {
                 let dir = dir.normalized();
 
 
-                let bacc = (self.force_settings.b_force * dis * dis);
-                let bacc = bacc.min(1.);
+                let bacc = (self.force_settings.b_force * dis);
 
                 let racc = -(self.force_settings.r_force / (dis.sqrt()));
 
@@ -213,7 +212,7 @@ impl MApp {
 
                 let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
 
-                let tot_acc = mr * (bacc+racc + if neighbors[&ni].contains(&oni) { eacc } else {0.});
+                let tot_acc = (mr * (bacc+racc + if neighbors[&ni].contains(&oni) { eacc } else {0.}));
 
                 let cvel = self.fg.node_mut(ni).unwrap().payload().vel;
                 self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel - (cvel*self.force_settings.stiffness*dt) + tot_acc * dt * dir;
@@ -240,9 +239,9 @@ impl MApp {
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
             ui.collapsing("Force simulation settings", |ui| {
                 ui.label("Edge attraction");
-                ui.add(Slider::new(&mut self.force_settings.e_force, (0.000001)..=(0.001)));
+                ui.add(Slider::new(&mut self.force_settings.e_force, (0.0)..=(0.002)));
                 ui.label("General bounding");
-                ui.add(Slider::new(&mut self.force_settings.b_force, (0.000001)..=(0.1)));
+                ui.add(Slider::new(&mut self.force_settings.b_force, (0.0)..=(0.002)));
                 ui.label("Repulsion");
                 ui.add(Slider::new(&mut self.force_settings.r_force, (10.)..=(1000.)));
                 ui.label("Stifness");
