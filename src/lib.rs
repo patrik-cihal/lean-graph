@@ -7,10 +7,10 @@ use edge_shape::EdgeShape;
 use rfd::FileDialog;
 
 
-use std::{fs, error::Error, collections::BTreeMap, time::Instant, path::PathBuf};
+use std::{fs, error::Error, collections::{BTreeMap, HashMap}, time::Instant, path::PathBuf};
 
 use eframe::{CreationContext, App};
-use egui::{Pos2, Vec2, ahash::HashMap, Slider, Color32};
+use egui::{Pos2, Vec2, Slider, Color32};
 use egui_graphs::{add_node, add_edge, GraphView, SettingsInteraction, SettingsStyle, SettingsNavigation, add_node_custom, Node, Edge};
 use petgraph::{stable_graph::StableGraph, adj::NodeIndex, Directed, visit::IntoNeighbors};
 use rand::{Rng, random};
@@ -83,19 +83,20 @@ impl Default for ForceSettings {
             b_force: 0.002,
             r_force: 400.,
             e_force: 0.001,
-            stiffness: 1.
+            stiffness: 0.5
         }
     }
 }
 
 struct ColoringSettings {
-    reach: usize
+    color_loss: f32
+
 }
 
 impl Default for ColoringSettings {
     fn default() -> Self {
         Self {
-            reach: 3
+            color_loss: 0.8
         }
     }
 }
@@ -133,22 +134,53 @@ impl MApp {
             self.fg.g[ni].payload_mut().comp_color = Default::default();
         }
 
+        // get node_indices as topological sort
+
+        let mut out_degree = HashMap::new();
+        let mut rev_neighbors = HashMap::new();
         for &ni in &node_indices {
-            let color = self.fg.g.node_weight(ni).unwrap().payload().color;
-            let mut stack = vec![ni];
-            for i in 0..self.coloring_settings.reach {
-                let mut nstack = vec![];
-                for cni in stack {
-                    let pow = 1./(1<<i) as f32 * if self.fg.g[ni].selected() { 3. } else { 1. };
-                    let comp_color = self.fg.g[cni].payload().comp_color;
-                    self.fg.g[cni].payload_mut().comp_color = ([comp_color.0[0] + pow * color[0], comp_color.0[1] + pow * color[1], comp_color.0[2] + pow * color[2]], comp_color.1 + pow);
-                    
-                    for &oni in &self.fg.g.neighbors(cni).collect::<Vec<_>>() {
-                        nstack.push(oni);
-                    }
-                }
-                stack = nstack;
+            *out_degree.entry(ni).or_insert(0) += self.fg.g.neighbors(ni).count();
+            for oni in self.fg.g.neighbors(ni).collect::<Vec<_>>() {
+                rev_neighbors.entry(oni).or_insert(vec![]).push(ni);
             }
+        }
+
+        let mut stack = vec![];
+        for &ni in &node_indices {
+            if *out_degree.entry(ni).or_insert(0) == 0 {
+                stack.push(ni);
+            }
+        }
+
+        let mut topo_sort = vec![];
+
+        while let Some(cur) = stack.pop() {
+            topo_sort.push(cur);
+            for oni in rev_neighbors.entry(cur).or_insert(vec![]).clone() {
+                *out_degree.get_mut(&oni).unwrap() -= 1;
+                if out_degree[&oni] == 0 {
+                    stack.push(oni);
+                }
+            }
+        }
+
+        for &ni in &topo_sort {
+            let color = self.fg.g.node_weight(ni).unwrap().payload().color;
+            let size = self.fg.g[ni].payload().size.powf(2.);
+            // add cur color to comp color
+            let comp_color = self.fg.g[ni].payload_mut().comp_color;
+            self.fg.g[ni].payload_mut().comp_color.0 =  [comp_color.0[0] + color[0]*size, comp_color.0[1]+color[1]*size, comp_color.0[2]+color[2]*size];
+            self.fg.g[ni].payload_mut().comp_color.1 += size;
+            let comp_color = self.fg.g[ni].payload_mut().comp_color;
+
+            // for each neighbor add my own comp color with some loss based on a constant
+            for &oni in &rev_neighbors[&ni] {
+                for i in 0..3 {
+                    self.fg.g[oni].payload_mut().comp_color.0[i] += comp_color.0[i] * self.coloring_settings.color_loss;
+                }
+                self.fg.g[oni].payload_mut().comp_color.1 += comp_color.1*self.coloring_settings.color_loss;
+            }
+            
         }
     }
     fn simulate_force_graph(&mut self, dt: f32) {
@@ -209,7 +241,7 @@ impl MApp {
             ui.collapsing("Force simulation settings", |ui| {
                 ui.label("Edge attraction");
                 ui.add(Slider::new(&mut self.force_settings.e_force, (0.000001)..=(0.001)));
-                ui.label("General ounding");
+                ui.label("General bounding");
                 ui.add(Slider::new(&mut self.force_settings.b_force, (0.000001)..=(0.1)));
                 ui.label("Repulsion");
                 ui.add(Slider::new(&mut self.force_settings.r_force, (10.)..=(1000.)));
@@ -217,8 +249,8 @@ impl MApp {
                 ui.add(Slider::new(&mut self.force_settings.stiffness, (0.)..=1.));
             });
             ui.collapsing("Coloring settings", |ui| {
-                ui.label("Node color spill reach");
-                ui.add(Slider::new(&mut self.coloring_settings.reach, 0..=10));
+                ui.label("Node coloring loss");
+                ui.add(Slider::new(&mut self.coloring_settings.color_loss, (0.0)..=1.0));
             });
 
             ui.collapsing("Filter", |ui| {
@@ -226,7 +258,7 @@ impl MApp {
                 ui.checkbox(self.node_type_filter.get_mut(&ConstType::Theorem).unwrap(), "Theorems");
                 ui.checkbox(self.node_type_filter.get_mut(&ConstType::Definition).unwrap(), "Definitions");
                 ui.checkbox(self.node_type_filter.get_mut(&ConstType::Other).unwrap(), "Other");
-                ui.label("Max node in-degree");
+                ui.label("Max node out-degree");
                 ui.add(Slider::new(&mut self.outer_edge_cnt_filter, 1..=1000));
             });
         });
