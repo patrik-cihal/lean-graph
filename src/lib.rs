@@ -4,10 +4,12 @@ mod edge_shape;
 
 use node_shape::NodeShape;
 use edge_shape::EdgeShape;
-use rfd::FileDialog;
+use rfd::{AsyncFileDialog, FileHandle};
 
+const STATIC_JSON_FILES: [&str; 1] = ["Nat.zero_add.json"];
+pub const SERVER_ADDR: &str = "http://localhost:8080";
 
-use std::{fs, error::Error, collections::{BTreeMap, HashMap}, time::Instant, path::PathBuf};
+use std::{fs, error::Error, collections::{BTreeMap, HashMap}, time::{Instant, Duration}, path::PathBuf, sync::{RwLock, Arc}, future::Future};
 
 use eframe::{CreationContext, App};
 use egui::{Pos2, Vec2, Slider, Color32};
@@ -15,6 +17,10 @@ use egui_graphs::{add_node, add_edge, GraphView, SettingsInteraction, SettingsSt
 use petgraph::{stable_graph::StableGraph, adj::NodeIndex, Directed, visit::IntoNeighbors};
 use rand::{Rng, random};
 use serde::Deserialize;
+
+pub fn now() -> std::time::Duration {
+    std::time::Duration::from_millis(chrono::Local::now().timestamp_millis() as u64)
+}
 
 fn col_ft(c: [f32; 3]) -> Color32 {
     Color32::from_rgb((c[0]*256.) as u8, (c[1] * 256.) as u8, (c[2] * 256.) as u8)
@@ -46,12 +52,16 @@ struct NodePayload {
     size: f32
 }
 
+fn random_node_color() -> [f32; 3] {
+    [0.; 3].map(|_| random::<f32>()/ 3.)
+}
+
 impl From<&NodeData> for NodePayload {
     fn from(value: &NodeData) -> Self {
         Self {
             name: value.name.clone(),
             const_type: value.const_type.clone(),
-            color: [0.; 3].map(|_| random::<f32>()/ 3.),
+            color: random_node_color(),
             comp_color: Default::default(),
             vel: Vec2::ZERO,
             size: ((value.references.len()+1) as f32).sqrt()
@@ -102,9 +112,10 @@ impl Default for ColoringSettings {
 }
 
 pub struct MApp {
-    g: G,
+    g: Arc<RwLock<G>>,
+    g_updated: Arc<RwLock<bool>>,
     fg: G,
-    last_update: Option<Instant>,
+    last_update: Option<Duration>,
     force_settings: ForceSettings,
     node_type_filter: BTreeMap<ConstType, bool>,
     outer_edge_cnt_filter: usize,
@@ -114,11 +125,8 @@ pub struct MApp {
 
 
 impl MApp {
-    pub fn new(_: &CreationContext<'_>) -> Self {
-        let file_path = FileDialog::new()
-            .add_filter("json", &["json"])
-            .pick_file().unwrap();
-        let g = load_graph(file_path);
+    pub fn new(_: &CreationContext<'_>, default_file_raw: String) -> Self {
+        let g = load_graph(default_file_raw);
         let mut node_type_filter = BTreeMap::new();
 
         node_type_filter.insert(ConstType::Axiom, true);
@@ -126,7 +134,7 @@ impl MApp {
         node_type_filter.insert(ConstType::Theorem, true);
         node_type_filter.insert(ConstType::Other, false);
 
-        Self { g: g.clone(), last_update: None, force_settings: Default::default(), node_type_filter, fg: g, outer_edge_cnt_filter:10, coloring_settings: Default::default() }
+        Self { g: Arc::new(RwLock::new(g.clone())), g_updated: Default::default(), last_update: None, force_settings: Default::default(), node_type_filter, fg: g, outer_edge_cnt_filter:10, coloring_settings: Default::default() }
     }
     fn color_nodes(&mut self) {
         let node_indices = self.fg.g.node_indices().collect::<Vec<_>>();
@@ -237,6 +245,47 @@ impl MApp {
             ui.add(&mut GraphView::new(&mut self.fg).with_styles(style_settings).with_navigations(navigations_settings).with_interactions(interaction_settings));
         });
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
+            ui.collapsing("File settings", |ui| {
+                #[cfg(target_arch="wasm32")]
+                ui.collapsing("Open from server", |ui| {
+                    for &server_file_name in &STATIC_JSON_FILES {
+                        if ui.button(server_file_name).clicked() {
+                            // download file from server and set it as current graph
+                            let gc = self.g.clone();
+                            let guc = self.g_updated.clone();
+                            
+                            spawn_local(async move {
+                                let ng_raw = read_graph_url(&format!("{SERVER_ADDR}/static/{server_file_name}")).await.unwrap();
+                                let ng = load_graph(ng_raw);
+
+                                *gc.write().unwrap() = ng.clone();
+                                *guc.write().unwrap() = true;
+                            })
+                        }
+                    }
+                });
+                if ui.button("Open local").clicked() {
+                    let gc = self.g.clone();
+                    let guc = self.g_updated.clone();
+                    spawn_local(async move {
+                        let ng_raw = read_graph_file_dialog().await;
+                        let ng = load_graph(ng_raw);
+                        *gc.write().unwrap() = ng.clone();
+                        *guc.write().unwrap() = true;
+                    });
+                }
+                #[cfg(target_arch="wasm32")]
+                if ui.button("Download dependency extractor").clicked() {
+                    spawn_local(async move {
+                        let Some(file_handle) = AsyncFileDialog::new().set_file_name("dep_extractor.lean").save_file().await else {
+                            return;
+                        };
+                        let data_raw = read_dep_extractor().await.unwrap();
+                        file_handle.write(data_raw.as_bytes()).await.unwrap();
+                    });
+                }
+            });
+
             ui.collapsing("Force simulation settings", |ui| {
                 ui.label("Edge attraction");
                 ui.add(Slider::new(&mut self.force_settings.e_force, (0.0)..=(0.002)));
@@ -250,6 +299,11 @@ impl MApp {
             ui.collapsing("Coloring settings", |ui| {
                 ui.label("Node coloring loss");
                 ui.add(Slider::new(&mut self.coloring_settings.color_loss, (0.0)..=1.0));
+                if ui.button("Randomize colors").clicked() {
+                    for ni in self.fg.g.node_indices().collect::<Vec<_>>() {
+                        self.fg.g[ni].payload_mut().color = random_node_color();
+                    }
+                }
             });
 
             ui.collapsing("Filter", |ui| {
@@ -260,16 +314,21 @@ impl MApp {
                 ui.label("Max node out-degree");
                 ui.add(Slider::new(&mut self.outer_edge_cnt_filter, 1..=1000));
             });
+
         });
     }
 
     fn update_filter_graph(&mut self) {
-        for &ni in &self.fg.g.node_indices().collect::<Vec<_>>() {
-            let cur_node = self.fg.g[ni].clone();
-            *self.g.g.node_weight_mut(ni).unwrap() = cur_node;
+        let mut g = self.g.write().unwrap();
+        if !*self.g_updated.read().unwrap() {
+            for &ni in &self.fg.g.node_indices().collect::<Vec<_>>() {
+                let cur_node = self.fg.g[ni].clone();
+                *g.g.node_weight_mut(ni).unwrap() = cur_node;
+            }
         }
-        self.fg = G::new(self.g.g.filter_map(|ni, node| {
-            if self.node_type_filter[&node.payload().const_type] && self.g.g.neighbors(ni).count() <= self.outer_edge_cnt_filter {
+        *self.g_updated.write().unwrap() = false;
+        self.fg = G::new(g.g.filter_map(|ni, node| {
+            if self.node_type_filter[&node.payload().const_type] && g.g.neighbors(ni).count() <= self.outer_edge_cnt_filter {
                 Some(node.clone())
             }
             else {
@@ -283,17 +342,18 @@ impl MApp {
 
 impl App for MApp {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
-        let dt = self.last_update.unwrap_or(Instant::now()).elapsed().as_secs_f32();
+        let ct = now();
+        let dt = (ct.clone() - self.last_update.unwrap_or(ct)).as_secs_f32();
         self.update_filter_graph();
-        self.simulate_force_graph(dt/10.);
+        self.simulate_force_graph(dt/100.);
         self.color_nodes();
-        self.last_update = Some(Instant::now());
+        self.last_update = Some(ct);
         self.draw_ui(ctx);
     }
 }
 
-fn load_graph(path: PathBuf) -> G {
-    let nodes = serde_json::from_str::<Vec<NodeData>>(&fs::read_to_string(path).unwrap()).unwrap();
+fn load_graph(default_file_raw: String) -> G {
+    let nodes = serde_json::from_str::<Vec<NodeData>>(&default_file_raw).unwrap();
     let mut sg = StableGraph::new();
 
 
@@ -323,4 +383,38 @@ fn load_graph(path: PathBuf) -> G {
 fn random_location(size: f32) -> Pos2 {
     let mut rng = rand::thread_rng();
     Pos2::new(rng.gen_range(0. ..size), rng.gen_range(0. ..size))
+}
+
+pub async fn read_graph_file_dialog() -> String {
+    let file_handle = AsyncFileDialog::new().add_filter("Json", &["json"]).pick_file().await.unwrap();
+    let data_raw = file_handle.read().await;
+    String::from_utf8(data_raw).unwrap()
+}
+
+pub async fn read_graph_url(url: &str) -> Result<String, reqwest::Error> {
+    let resp = reqwest::get(url).await?;
+    resp.error_for_status_ref()?;
+    resp.text().await
+}
+
+pub async fn read_dep_extractor() -> Result<String, reqwest::Error> {
+    let resp = reqwest::get(format!("{SERVER_ADDR}/static/dep_extractor.lean")).await?;
+    resp.error_for_status_ref()?;
+    resp.text().await
+}
+
+fn spawn_local<F>(future: F)
+where
+    F: Future<Output = ()> + 'static,
+{
+    #[cfg(target_arch="wasm32")]
+    wasm_bindgen_futures::spawn_local(future);
+    #[cfg(not(target_arch="wasm32"))]
+    {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(future);
+    }
 }
