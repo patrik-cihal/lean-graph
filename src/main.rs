@@ -32,7 +32,7 @@ fn main() {
 
     wasm_bindgen_futures::spawn_local(async {
         // let data_raw = read_graph_file_dialog().await;
-        let data_raw = read_graph_url(&format!("{SERVER_ADDR}/static/Nat.zero_add.json")).await.unwrap();
+        let data_raw = read_graph_url(&format!("{}/static/Nat.zero_add.json", SERVER_ADDR)).await.unwrap();
         eframe::WebRunner::new()
             .start(
                 "lean-graph-canvas", // hardcode it
