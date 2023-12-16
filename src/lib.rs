@@ -6,7 +6,7 @@ use node_shape::NodeShape;
 use edge_shape::EdgeShape;
 use rfd::{AsyncFileDialog, FileHandle};
 
-const STATIC_JSON_FILES: [&str; 1] = ["Nat.zero_add.json"];
+const STATIC_JSON_FILES: [&str; 2] = ["Nat.zero_add.json", "fermatLastTheoremFour.json"];
 pub const SERVER_ADDR: &str = "http://localhost:8080";
 
 use std::{fs, error::Error, collections::{BTreeMap, HashMap}, time::{Instant, Duration}, path::PathBuf, sync::{RwLock, Arc}, future::Future};
@@ -268,7 +268,9 @@ impl MApp {
                     let gc = self.g.clone();
                     let guc = self.g_updated.clone();
                     spawn_local(async move {
-                        let ng_raw = read_graph_file_dialog().await;
+                        let Some(ng_raw) = read_graph_file_dialog().await else {
+                            return;
+                        };
                         let ng = load_graph(ng_raw);
                         *gc.write().unwrap() = ng.clone();
                         *guc.write().unwrap() = true;
@@ -342,12 +344,12 @@ impl MApp {
 
 impl App for MApp {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
+        self.update_filter_graph();
         let ct = now();
         let dt = (ct.clone() - self.last_update.unwrap_or(ct)).as_secs_f32();
-        self.update_filter_graph();
-        self.simulate_force_graph(dt/100.);
-        self.color_nodes();
+        self.simulate_force_graph(dt.min(0.1)/100.);
         self.last_update = Some(ct);
+        self.color_nodes();
         self.draw_ui(ctx);
     }
 }
@@ -385,10 +387,12 @@ fn random_location(size: f32) -> Pos2 {
     Pos2::new(rng.gen_range(0. ..size), rng.gen_range(0. ..size))
 }
 
-pub async fn read_graph_file_dialog() -> String {
-    let file_handle = AsyncFileDialog::new().add_filter("Json", &["json"]).pick_file().await.unwrap();
+pub async fn read_graph_file_dialog() -> Option<String> {
+    let Some(file_handle) = AsyncFileDialog::new().add_filter("Json", &["json"]).pick_file().await else {
+        return None;
+    };
     let data_raw = file_handle.read().await;
-    String::from_utf8(data_raw).unwrap()
+    Some(String::from_utf8(data_raw).unwrap())
 }
 
 pub async fn read_graph_url(url: &str) -> Result<String, reqwest::Error> {
