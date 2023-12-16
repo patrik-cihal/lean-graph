@@ -6,7 +6,7 @@ use node_shape::NodeShape;
 use edge_shape::EdgeShape;
 use rfd::{AsyncFileDialog, FileHandle};
 
-const STATIC_JSON_FILES: [&str; 2] = ["Nat.zero_add.json", "fermatLastTheoremFour.json"];
+const STATIC_JSON_FILES: [&str; 2] = ["Nat.zero_add.json", "Nat.prime_of_coprime"];
 pub const SERVER_ADDR: &str = "http://localhost:8080";
 
 use std::{fs, error::Error, collections::{BTreeMap, HashMap}, time::{Instant, Duration}, path::PathBuf, sync::{RwLock, Arc}, future::Future};
@@ -188,7 +188,7 @@ impl MApp {
                 }
                 self.fg.g[oni].payload_mut().comp_color.1 += comp_color.1*self.coloring_settings.color_loss;
             }
-            
+
         }
     }
     fn simulate_force_graph(&mut self, dt: f32) {
@@ -227,7 +227,7 @@ impl MApp {
                 self.fg.node_mut(ni).unwrap().set_location(pos + cvel * dt);
             }
         }
-    } 
+    }
     fn draw_ui(&mut self, ctx: &eframe::egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let interaction_settings = &SettingsInteraction::new()
@@ -237,11 +237,11 @@ impl MApp {
                 .with_edge_selection_enabled(true)
                 .with_node_selection_enabled(true)
                 .with_node_selection_multi_enabled(true);
-                
+
 
             let style_settings = &SettingsStyle::new().with_labels_always(true);
             let navigations_settings = &SettingsNavigation::new().with_zoom_and_pan_enabled(true).with_fit_to_screen_enabled(false);
-            
+
             ui.add(&mut GraphView::new(&mut self.fg).with_styles(style_settings).with_navigations(navigations_settings).with_interactions(interaction_settings));
         });
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
@@ -253,7 +253,7 @@ impl MApp {
                             // download file from server and set it as current graph
                             let gc = self.g.clone();
                             let guc = self.g_updated.clone();
-                            
+
                             spawn_local(async move {
                                 let ng_raw = read_graph_url(&format!("{SERVER_ADDR}/static/{server_file_name}")).await.unwrap();
                                 let ng = load_graph(ng_raw);
