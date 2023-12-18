@@ -16,7 +16,7 @@ use std::{
 };
 
 use eframe::{App, CreationContext};
-use egui::{Color32, Pos2, Slider, Vec2, Visuals};
+use egui::{Color32, Pos2, Slider, Vec2, Visuals, Hyperlink};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
 use petgraph::{Directed, stable_graph::StableGraph};
 use rand::{random, Rng};
@@ -394,6 +394,13 @@ impl MApp {
                         ui.ctx().set_visuals(Visuals::dark());
                     }
                 }
+            });
+
+            ui.allocate_space(ui.available_size()-Vec2::Y*30.);
+            
+            ui.horizontal(|ui| {
+                ui.label("Contact:");
+                ui.add(Hyperlink::from_label_and_url("GitHub", "https://github.com/patrik-cihal/lean-graph"));
             });
         });
     }
