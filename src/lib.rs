@@ -6,7 +6,7 @@ use node_shape::NodeShape;
 use rfd::AsyncFileDialog;
 
 const STATIC_JSON_FILES: [&str; 2] = ["Nat.zero_add.json", "Nat.prime_of_coprime"];
-pub const SERVER_ADDR: &str = "http://localhost:8080";
+pub const SERVER_ADDR: &str = "https://lean-graph.com";
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -279,7 +279,6 @@ impl MApp {
         });
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
             ui.collapsing("File", |ui| {
-                #[cfg(target_arch = "wasm32")]
                 ui.collapsing("Open from server", |ui| {
                     for &server_file_name in &STATIC_JSON_FILES {
                         if ui.button(server_file_name).clicked() {
@@ -313,7 +312,6 @@ impl MApp {
                         *guc.write().unwrap() = true;
                     });
                 }
-                #[cfg(target_arch = "wasm32")]
                 if ui.button("Download dependency extractor").clicked() {
                     spawn_local(async move {
                         let Some(file_handle) = AsyncFileDialog::new()
