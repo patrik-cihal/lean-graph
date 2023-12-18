@@ -1,4 +1,5 @@
 use lean_dependency_graph::MApp;
+use lean_dependency_graph::SERVER_ADDR;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {

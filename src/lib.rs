@@ -18,7 +18,7 @@ use std::{
 use eframe::{App, CreationContext};
 use egui::{Color32, Pos2, Slider, Vec2};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
-use petgraph::{stable_graph::StableGraph, visit::IntoNeighbors, Directed};
+use petgraph::{Directed, stable_graph::StableGraph};
 use rand::{random, Rng};
 use serde::Deserialize;
 
