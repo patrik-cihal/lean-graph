@@ -2,6 +2,8 @@
 
 Interactive visualization of dependencies for any theorem/definitions in your Lean project.
 
+Check it out in browser: https://lean-graph.com/.
+
 ![Fermat last theorem four](fermat-last-theorem-4-example.png)
 
 ## How to use
