@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 eframe = "0.24.1"
 egui = "0.24.1"
-egui_graphs = { version ="0.17.0", features = ["events"] }
+egui_graphs = { git = "https://github.com/patrik-cihal/egui_graphs", features = ["events"], branch = "v3" }
 petgraph = "0.6.4"
 rand = "0.8.5"
 rfd = "0.12.1"
