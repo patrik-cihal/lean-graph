@@ -1,11 +1,13 @@
 use std::f32::consts::PI;
 
-use egui::{Stroke, Shape, epaint::{QuadraticBezierShape, CubicBezierShape}, Color32, Vec2, Pos2};
-use egui_graphs::{EdgeProps, DisplayNode, DisplayEdge, Node, DrawContext};
-use petgraph::{EdgeType, stable_graph::IndexType};
+use egui::{
+    epaint::{CubicBezierShape, QuadraticBezierShape},
+    Color32, Pos2, Shape, Stroke, Vec2,
+};
+use egui_graphs::{DisplayEdge, DisplayNode, DrawContext, EdgeProps, Node};
+use petgraph::{stable_graph::IndexType, EdgeType};
 
-use crate::{NodePayload, col_ft};
-
+use crate::{col_ft, NodePayload};
 
 #[derive(Clone, Debug)]
 pub struct EdgeShape {
@@ -24,7 +26,7 @@ impl<E: Clone> From<EdgeProps<E>> for EdgeShape {
         Self {
             order: edge.order,
             selected: edge.selected,
-            
+
             width: 2.,
             tip_size: 15.,
             tip_angle: std::f32::consts::TAU / 30.,
@@ -39,9 +41,9 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
 {
     fn is_inside(
         &self,
-        start: &Node<NodePayload, E, Ty, Ix, D>,
-        end: &Node<NodePayload, E, Ty, Ix, D>,
-        pos: egui::Pos2,
+        _start: &Node<NodePayload, E, Ty, Ix, D>,
+        _end: &Node<NodePayload, E, Ty, Ix, D>,
+        _pos: egui::Pos2,
     ) -> bool {
         //unclickable
         return false;
@@ -53,12 +55,21 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         end: &Node<NodePayload, E, Ty, Ix, D>,
         ctx: &DrawContext,
     ) -> Vec<egui::Shape> {
-        let style = match self.selected {
+        let _style = match self.selected {
             true => ctx.ctx.style().visuals.widgets.active,
             false => ctx.ctx.style().visuals.widgets.inactive,
         };
-        let mut color = if ctx.ctx.style().visuals.dark_mode { col_ft(start.payload().comp_color().map(|x| 1.-2.*x)) } else {col_ft(start.payload().comp_color())};
-        color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if end.selected() { 230 } else { 50 });
+        let mut color = if ctx.ctx.style().visuals.dark_mode {
+            col_ft(start.payload().comp_color().map(|x| 1. - 2. * x))
+        } else {
+            col_ft(start.payload().comp_color())
+        };
+        color = Color32::from_rgba_unmultiplied(
+            color.r(),
+            color.g(),
+            color.b(),
+            if end.selected() { 230 } else { 50 },
+        );
 
         let mp = start.payload().size.min(end.payload().size);
 
@@ -84,7 +95,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         let edge_start = start_connector_point;
         let edge_end = end_connector_point - self.tip_size * dir;
 
-        let stroke_edge = Stroke::new(self.width*mp * ctx.meta.zoom, color);
+        let stroke_edge = Stroke::new(self.width * mp * ctx.meta.zoom, color);
         let stroke_tip = Stroke::new(0., color);
         if self.order == 0 {
             // draw straight edge
@@ -231,7 +242,6 @@ fn shape_curved(
         stroke,
     )
 }
-
 
 fn node_size<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>(
     node: &Node<N, E, Ty, Ix, D>,
