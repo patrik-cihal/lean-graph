@@ -223,7 +223,7 @@ impl MApp {
                 let tot_acc = (mr * (bacc+racc + if neighbors[&ni].contains(&oni) { eacc } else {0.}));
 
                 let cvel = self.fg.node_mut(ni).unwrap().payload().vel;
-                self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel - (cvel*self.force_settings.stiffness*dt) + tot_acc * dt * dir;
+                self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel - (cvel*self.force_settings.stiffness*dt) + tot_acc * 0.01 * dt * dir;
                 self.fg.node_mut(ni).unwrap().set_location(pos + cvel * dt);
             }
         }
@@ -347,7 +347,7 @@ impl App for MApp {
         self.update_filter_graph();
         let ct = now();
         let dt = (ct.clone() - self.last_update.unwrap_or(ct)).as_secs_f32();
-        self.simulate_force_graph(dt.min(0.1)/100.);
+        self.simulate_force_graph(dt.min(0.05));
         self.last_update = Some(ct);
         self.color_nodes();
         self.draw_ui(ctx);
