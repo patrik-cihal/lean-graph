@@ -62,13 +62,13 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         let mut color = if ctx.ctx.style().visuals.dark_mode {
             col_ft(start.payload().comp_color().map(|x| 1. - x))
         } else {
-            col_ft(start.payload().comp_color())
+            col_ft(start.payload().comp_color().map(|x| x.sqrt()))
         };
         color = Color32::from_rgba_unmultiplied(
             color.r(),
             color.g(),
             color.b(),
-            if end.selected() { 230 } else { 50 },
+            if end.selected() { 230 } else { if ctx.ctx.style().visuals.dark_mode {50} else {180} },
         );
 
         let mp = start.payload().size.min(end.payload().size);

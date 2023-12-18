@@ -58,7 +58,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<NodePayload, E, Ty, Ix> 
         let color = if ctx.ctx.style().visuals.dark_mode {
             col_ft(self.color.map(|x| 1. - x))
         } else {
-            col_ft(self.color)
+            col_ft(self.color.map(|x| x.sqrt()))
         };
         let text_color = style.text_color();
 
