@@ -7,7 +7,7 @@ Interactive visualization of dependencies for any theorem/definitions in your Le
 
 ## How to use
 
-### In your browser: lean-graph.com.
+### In your browser: [lean-graph.com](https://lean-graph.com/)
 
 ### Or run locally
 1. Copy the get_graph_meta.lean into your project folder
