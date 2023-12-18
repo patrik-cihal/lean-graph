@@ -16,7 +16,7 @@ use std::{
 };
 
 use eframe::{App, CreationContext};
-use egui::{Color32, Pos2, Slider, Vec2};
+use egui::{Color32, Pos2, Slider, Vec2, Visuals};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
 use petgraph::{Directed, stable_graph::StableGraph};
 use rand::{random, Rng};
@@ -61,7 +61,7 @@ struct NodePayload {
 }
 
 fn random_node_color() -> [f32; 3] {
-    [0.; 3].map(|_| random::<f32>() / 3.)
+    [0.; 3].map(|_| (random::<f32>() / 3.)*2.)
 }
 
 impl From<&NodeData> for NodePayload {
@@ -278,7 +278,7 @@ impl MApp {
             );
         });
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
-            ui.collapsing("File settings", |ui| {
+            ui.collapsing("File", |ui| {
                 #[cfg(target_arch = "wasm32")]
                 ui.collapsing("Open from server", |ui| {
                     for &server_file_name in &STATIC_JSON_FILES {
@@ -329,7 +329,7 @@ impl MApp {
                 }
             });
 
-            ui.collapsing("Force simulation settings", |ui| {
+            ui.collapsing("Force simulation", |ui| {
                 ui.label("Edge attraction");
                 ui.add(Slider::new(
                     &mut self.force_settings.e_force,
@@ -348,7 +348,7 @@ impl MApp {
                 ui.label("Stifness");
                 ui.add(Slider::new(&mut self.force_settings.stiffness, (0.)..=1.));
             });
-            ui.collapsing("Coloring settings", |ui| {
+            ui.collapsing("Coloring", |ui| {
                 ui.label("Node coloring loss");
                 ui.add(Slider::new(
                     &mut self.coloring_settings.color_loss,
@@ -382,6 +382,18 @@ impl MApp {
                 );
                 ui.label("Max node out-degree");
                 ui.add(Slider::new(&mut self.outer_edge_cnt_filter, 1..=1000));
+            });
+
+            ui.collapsing("Style", |ui| {
+                let dark_mode = ui.ctx().style().visuals.dark_mode;
+                if ui.button(format!("Toggle {} mode", if dark_mode {"light"} else {"dark"})).clicked() {
+                    if dark_mode {
+                        ui.ctx().set_visuals(Visuals::light());
+                    }
+                    else {
+                        ui.ctx().set_visuals(Visuals::dark());
+                    }
+                }
             });
         });
     }

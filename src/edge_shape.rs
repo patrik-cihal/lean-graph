@@ -60,7 +60,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
             false => ctx.ctx.style().visuals.widgets.inactive,
         };
         let mut color = if ctx.ctx.style().visuals.dark_mode {
-            col_ft(start.payload().comp_color().map(|x| 1. - 2. * x))
+            col_ft(start.payload().comp_color().map(|x| 1. - x))
         } else {
             col_ft(start.payload().comp_color())
         };

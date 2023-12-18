@@ -56,7 +56,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<NodePayload, E, Ty, Ix> 
             false => ctx.ctx.style().visuals.widgets.inactive,
         };
         let color = if ctx.ctx.style().visuals.dark_mode {
-            col_ft(self.color.map(|x| 1. - 2. * x))
+            col_ft(self.color.map(|x| 1. - x))
         } else {
             col_ft(self.color)
         };
