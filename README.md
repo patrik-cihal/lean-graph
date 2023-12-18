@@ -2,12 +2,14 @@
 
 Interactive visualization of dependencies for any theorem/definitions in your Lean project.
 
-Check it out in browser: https://lean-graph.com/.
 
 ![Fermat last theorem four](fermat-last-theorem-4-example.png)
 
 ## How to use
 
+### In your browser: https://lean-graph.com/.
+
+### Or run locally
 1. Copy the get_graph_meta.lean into your project folder
 2. In the top of the file import the files where are the theorems/definitions you want to extract the graph for
 3. In the bottom of the file there is an #eval line where you can specify your own custom theorem/definition name
