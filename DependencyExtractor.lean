@@ -103,7 +103,6 @@ def serializeAndWriteToFile (s : MetaM Syntax) (depth : Nat) := do
 
 
 
-
 -- In the line below, replace `Nat.add_comm` with your name and uncomment it to get the JSON file
 
 -- #eval serializeAndWriteToFile `(Nat.zero_add) 7
