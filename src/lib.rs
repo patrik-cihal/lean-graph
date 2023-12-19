@@ -315,7 +315,7 @@ impl MApp {
                 if ui.button("Download dependency extractor").clicked() {
                     spawn_local(async move {
                         let Some(file_handle) = AsyncFileDialog::new()
-                            .set_file_name("dep_extractor.lean")
+                            .set_file_name("DependencyExtractor.lean")
                             .save_file()
                             .await
                         else {
@@ -496,7 +496,7 @@ pub async fn read_graph_url(url: &str) -> Result<String, reqwest::Error> {
 }
 
 pub async fn read_dep_extractor() -> Result<String, reqwest::Error> {
-    let resp = reqwest::get(format!("{SERVER_ADDR}/static/dep_extractor.lean")).await?;
+    let resp = reqwest::get(format!("{SERVER_ADDR}/static/DependencyExtractor.lean")).await?;
     resp.error_for_status_ref()?;
     resp.text().await
 }
