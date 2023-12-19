@@ -97,7 +97,7 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
 
         let stroke_edge = Stroke::new(self.width * mp * ctx.meta.zoom, color);
         let stroke_tip = Stroke::new(0., color);
-        if self.order == 0 {
+        // if self.order == 0 {
             // draw straight edge
 
             let line = Shape::line_segment(
@@ -126,51 +126,51 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
                 stroke_tip,
             );
             return vec![line, line_tip];
-        }
+        // }
 
         // draw curved edge
 
-        let dir_perpendicular = Vec2::new(-dir.y, dir.x);
-        let center_point = (edge_start + edge_end.to_vec2()).to_vec2() / 2.;
-        let control_point =
-            (center_point + dir_perpendicular * mp * self.curve_size * self.order as f32).to_pos2();
+        // let dir_perpendicular = Vec2::new(-dir.y, dir.x);
+        // let center_point = (edge_start + edge_end.to_vec2()).to_vec2() / 2.;
+        // let control_point =
+        //     (center_point + dir_perpendicular * mp * self.curve_size * self.order as f32).to_pos2();
 
-        let tip_dir = (control_point - tip_end).normalized();
+        // let tip_dir = (control_point - tip_end).normalized();
 
-        let arrow_tip_dir_1 = rotate_vector(tip_dir, self.tip_angle) * mp * self.tip_size;
-        let arrow_tip_dir_2 = rotate_vector(tip_dir, -self.tip_angle) * mp * self.tip_size;
+        // let arrow_tip_dir_1 = rotate_vector(tip_dir, self.tip_angle) * mp * self.tip_size;
+        // let arrow_tip_dir_2 = rotate_vector(tip_dir, -self.tip_angle) * mp * self.tip_size;
 
-        let tip_start_1 = tip_end + arrow_tip_dir_1;
-        let tip_start_2 = tip_end + arrow_tip_dir_2;
+        // let tip_start_1 = tip_end + arrow_tip_dir_1;
+        // let tip_start_2 = tip_end + arrow_tip_dir_2;
 
-        let edge_end_curved = point_between(tip_start_1, tip_start_2);
+        // let edge_end_curved = point_between(tip_start_1, tip_start_2);
 
-        let line_curved = QuadraticBezierShape::from_points_stroke(
-            [
-                ctx.meta.canvas_to_screen_pos(edge_start),
-                ctx.meta.canvas_to_screen_pos(control_point),
-                ctx.meta.canvas_to_screen_pos(edge_end_curved),
-            ],
-            false,
-            Color32::TRANSPARENT,
-            stroke_edge,
-        );
+        // let line_curved = QuadraticBezierShape::from_points_stroke(
+        //     [
+        //         ctx.meta.canvas_to_screen_pos(edge_start),
+        //         ctx.meta.canvas_to_screen_pos(control_point),
+        //         ctx.meta.canvas_to_screen_pos(edge_end_curved),
+        //     ],
+        //     false,
+        //     Color32::TRANSPARENT,
+        //     stroke_edge,
+        // );
 
-        if !ctx.is_directed {
-            return vec![line_curved.into()];
-        }
+        // if !ctx.is_directed {
+        //     return vec![line_curved.into()];
+        // }
 
-        let line_curved_tip = Shape::convex_polygon(
-            vec![
-                ctx.meta.canvas_to_screen_pos(tip_end),
-                ctx.meta.canvas_to_screen_pos(tip_start_1),
-                ctx.meta.canvas_to_screen_pos(tip_start_2),
-            ],
-            color,
-            stroke_tip,
-        );
+        // let line_curved_tip = Shape::convex_polygon(
+        //     vec![
+        //         ctx.meta.canvas_to_screen_pos(tip_end),
+        //         ctx.meta.canvas_to_screen_pos(tip_start_1),
+        //         ctx.meta.canvas_to_screen_pos(tip_start_2),
+        //     ],
+        //     color,
+        //     stroke_tip,
+        // );
 
-        vec![line_curved.into(), line_curved_tip]
+        // vec![line_curved.into(), line_curved_tip]
     }
 
     fn update(&mut self, state: &EdgeProps<E>) {
