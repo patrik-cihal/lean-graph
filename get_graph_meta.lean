@@ -31,7 +31,7 @@ structure BFSState :=
   (g : HashMap Name (List Name))
   (outerLayer : List Name)
 
-def getUsedConstantGraph (name : Name) : TermElabM (List (Name × List Name)) := do
+def getUsedConstantGraph (name : Name) (depth : Nat) : TermElabM (List (Name × List Name)) := do
 
   -- make bfs from the specified root node
 
@@ -44,7 +44,7 @@ def getUsedConstantGraph (name : Name) : TermElabM (List (Name × List Name)) :=
   -- then we extract the outer layer from the new nodes by looking at the children and checking whether they are already in the graph
 
 
-  let state ← (List.range 10).foldlM (fun (state : BFSState) (i : Nat) => do
+  let state ← (List.range depth).foldlM (fun (state : BFSState) (_ : Nat) => do
     let g := state.g
     let outerLayer := state.outerLayer
 
@@ -93,11 +93,11 @@ def serializeList (l : List (Name × List Name)) : TermElabM Json := do
   return Json.arr res.toArray
 
 
-def serializeAndWriteToFile (s : MetaM Syntax) := do
+def serializeAndWriteToFile (s : MetaM Syntax) (depth : Nat) := do
   let expr ← getExpr s
   let name := expr.constName!
 
-  let g ← getUsedConstantGraph name
+  let g ← getUsedConstantGraph name depth
   let js ←  serializeList g
   let _ ← writeJsonToFile ((toString name).append ".json") js
 
@@ -106,4 +106,4 @@ def serializeAndWriteToFile (s : MetaM Syntax) := do
 
 -- In the line below, replace `Nat.add_comm` with your name and uncomment it to get the JSON file
 
--- #eval serializeAndWriteToFile `(Nat.zero_add)
+-- #eval serializeAndWriteToFile `(Nat.zero_add) 7

@@ -5,7 +5,7 @@ use edge_shape::EdgeShape;
 use node_shape::NodeShape;
 use rfd::AsyncFileDialog;
 
-const STATIC_JSON_FILES: [&str; 2] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json"];
+const STATIC_JSON_FILES: [&str; 3] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json"];
 pub const SERVER_ADDR: &str = "https://lean-graph.com";
 
 use std::{
@@ -395,7 +395,7 @@ impl MApp {
             });
 
             ui.allocate_space(ui.available_size()-Vec2::Y*30.);
-            
+
             ui.horizontal(|ui| {
                 ui.label("Contact:");
                 ui.add(Hyperlink::from_label_and_url("GitHub", "https://github.com/patrik-cihal/lean-graph"));
