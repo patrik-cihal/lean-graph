@@ -7,7 +7,7 @@ use egui::{
 use egui_graphs::{DisplayNode, DrawContext, NodeProps};
 use petgraph::{stable_graph::IndexType, EdgeType};
 
-use crate::{col_ft, ConstType, NodePayload};
+use crate::{col_ft, ConstCategory, NodePayload};
 
 #[derive(Clone, Debug)]
 pub struct NodeShape {
@@ -16,7 +16,7 @@ pub struct NodeShape {
     pub selected: bool,
 
     pub name: String,
-    const_type: ConstType,
+    const_type: ConstCategory,
 
     /// Shape defined property
     pub radius: f32,
@@ -32,7 +32,7 @@ impl From<NodeProps<NodePayload>> for NodeShape {
 
             radius: 10. * node_props.payload.size,
             color: node_props.payload.color,
-            const_type: node_props.payload.const_type,
+            const_type: node_props.payload.const_category,
         }
     }
 }
@@ -76,16 +76,16 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<NodePayload, E, Ty, Ix> 
         };
         let no_stroke = Stroke::new(0., color);
         let shape = match self.const_type {
-            ConstType::Theorem => Shape::convex_polygon(get_n_polygon(5), color, no_stroke),
-            ConstType::Definition => Shape::convex_polygon(get_n_polygon(3), color, no_stroke),
-            ConstType::Axiom => CircleShape {
+            ConstCategory::Theorem => Shape::convex_polygon(get_n_polygon(5), color, no_stroke),
+            ConstCategory::Definition => Shape::convex_polygon(get_n_polygon(3), color, no_stroke),
+            ConstCategory::Axiom => CircleShape {
                 center,
                 radius,
                 fill: color,
                 stroke: Stroke::default(),
             }
             .into(),
-            ConstType::Other => Shape::convex_polygon(get_n_polygon(4), color, no_stroke),
+            ConstCategory::Other => Shape::convex_polygon(get_n_polygon(4), color, no_stroke),
         };
 
         res.push(shape.into());

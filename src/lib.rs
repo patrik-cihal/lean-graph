@@ -5,7 +5,7 @@ use edge_shape::EdgeShape;
 use node_shape::NodeShape;
 use rfd::AsyncFileDialog;
 
-const STATIC_JSON_FILES: [&str; 2] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json"];
+const STATIC_JSON_FILES: [&str; 5] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json", "Cardinal.cantor.json", "Continuous.deriv_integral.json", "fermatLastTheoremFour.json"];
 pub const SERVER_ADDR: &str = "https://lean-graph.com";
 
 use std::{
@@ -35,7 +35,7 @@ fn col_ft(c: [f32; 3]) -> Color32 {
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-enum ConstType {
+enum ConstCategory {
     Theorem,
     Definition,
     Axiom,
@@ -47,7 +47,8 @@ enum ConstType {
 struct NodeData {
     name: String,
     references: Vec<String>,
-    const_type: ConstType,
+    const_category: ConstCategory,
+    const_type: String
 }
 
 #[derive(Clone, Debug)]
@@ -56,8 +57,9 @@ struct NodePayload {
     vel: Vec2,
     color: [f32; 3],
     comp_color: ([f32; 3], f32),
-    const_type: ConstType,
+    const_category: ConstCategory,
     size: f32,
+    const_type: String
 }
 
 fn random_node_color() -> [f32; 3] {
@@ -68,11 +70,12 @@ impl From<&NodeData> for NodePayload {
     fn from(value: &NodeData) -> Self {
         Self {
             name: value.name.clone(),
-            const_type: value.const_type.clone(),
+            const_category: value.const_category.clone(),
             color: random_node_color(),
             comp_color: Default::default(),
             vel: Vec2::ZERO,
             size: ((value.references.len() + 1) as f32).sqrt(),
+            const_type: value.const_type.clone()
         }
     }
 }
@@ -122,20 +125,26 @@ pub struct MApp {
     fg: G,
     last_update: Option<Duration>,
     force_settings: ForceSettings,
-    node_type_filter: BTreeMap<ConstType, bool>,
+    node_type_filter: BTreeMap<ConstCategory, bool>,
     outer_edge_cnt_filter: usize,
     coloring_settings: ColoringSettings,
 }
 
 impl MApp {
-    pub fn new(_: &CreationContext<'_>, default_file_raw: String) -> Self {
+    pub fn new(ctx: &CreationContext<'_>, default_file_raw: String) -> Self {
+        // setup font that support math characters
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert("noto_sans_math".into(), egui::FontData::from_static(include_bytes!("../static/NotoSansMath-Regular.ttf")));
+        fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "noto_sans_math".into());
+        ctx.egui_ctx.set_fonts(fonts);
+
         let g = load_graph(default_file_raw);
         let mut node_type_filter = BTreeMap::new();
 
-        node_type_filter.insert(ConstType::Axiom, true);
-        node_type_filter.insert(ConstType::Definition, true);
-        node_type_filter.insert(ConstType::Theorem, true);
-        node_type_filter.insert(ConstType::Other, false);
+        node_type_filter.insert(ConstCategory::Axiom, true);
+        node_type_filter.insert(ConstCategory::Definition, true);
+        node_type_filter.insert(ConstCategory::Theorem, true);
+        node_type_filter.insert(ConstCategory::Other, false);
 
         Self {
             g: Arc::new(RwLock::new(g.clone())),
@@ -276,6 +285,17 @@ impl MApp {
                     .with_navigations(navigations_settings)
                     .with_interactions(interaction_settings),
             );
+
+            let g = self.g.read().unwrap();
+            let node_indices = g.g.node_indices().clone().collect::<Vec<_>>();
+            for ni in node_indices {
+                if g.g[ni].selected() {
+                    let data = g.g[ni].payload();
+                    egui::Window::new(data.name.clone()).show(ctx, |ui| {
+                        ui.label(data.const_type.clone());
+                    });
+                }
+            }
         });
         egui::SidePanel::new(egui::panel::Side::Right, "Settings").show(ctx, |ui| {
             ui.collapsing("File", |ui| {
@@ -361,21 +381,21 @@ impl MApp {
 
             ui.collapsing("Filter", |ui| {
                 ui.checkbox(
-                    self.node_type_filter.get_mut(&ConstType::Axiom).unwrap(),
+                    self.node_type_filter.get_mut(&ConstCategory::Axiom).unwrap(),
                     "Axioms",
                 );
                 ui.checkbox(
-                    self.node_type_filter.get_mut(&ConstType::Theorem).unwrap(),
+                    self.node_type_filter.get_mut(&ConstCategory::Theorem).unwrap(),
                     "Theorems",
                 );
                 ui.checkbox(
                     self.node_type_filter
-                        .get_mut(&ConstType::Definition)
+                        .get_mut(&ConstCategory::Definition)
                         .unwrap(),
                     "Definitions",
                 );
                 ui.checkbox(
-                    self.node_type_filter.get_mut(&ConstType::Other).unwrap(),
+                    self.node_type_filter.get_mut(&ConstCategory::Other).unwrap(),
                     "Other",
                 );
                 ui.label("Max node out-degree");
@@ -414,7 +434,7 @@ impl MApp {
         *self.g_updated.write().unwrap() = false;
         self.fg = G::new(g.g.filter_map(
             |ni, node| {
-                if self.node_type_filter[&node.payload().const_type]
+                if self.node_type_filter[&node.payload().const_category]
                     && g.g.neighbors(ni).count() <= self.outer_edge_cnt_filter
                 {
                     Some(node.clone())

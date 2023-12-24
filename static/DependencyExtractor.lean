@@ -1,11 +1,29 @@
 import Lean
 import Lean.Data.Json.FromToJson
-open Lean Elab Term
+import Lean.Elab.BuiltinCommand
+import Lean.Meta.Basic
+import Lean.Message
+open Lean Elab Term Meta
 
 
 def getExpr (x : MetaM Syntax) : TermElabM Expr := do
   let synt ← x
   elabTerm synt none
+
+def getConstName (x : MetaM Syntax) := do
+  let expr ← getExpr x
+  return expr.constName!
+
+def getTypeStr (n : Name) := do
+  let inf ← getConstInfo n
+  let t := inf.toConstantVal.type
+  let dat ← ppExpr t
+  return s!"{dat}"
+
+def getTypeExpr (n : Name) : MetaM Expr := do
+  let inf ← getConstInfo n
+  let t := inf.toConstantVal.type
+  return t
 
 def getConstType (n : Name) : TermElabM String := do
   let constInfo ← getConstInfo n
@@ -21,11 +39,16 @@ def getConstantBody (n : Name) : MetaM (Option Expr) := do
   return constValue
 
 
-def getAllConstsFromConst (n : Name) := do
+def getAllConstsFromConst (n : Name) : MetaM (Array Name) := do
   let body ← getConstantBody n
-  return (match body with
-  | some body => body.getUsedConstants
-  | none => {})
+  let type ← getTypeExpr n
+  let consts1 := match body with
+    | some body => body.getUsedConstants
+    | none => [].toArray
+  let consts2 := type.getUsedConstants
+  let res := consts1 ++ consts2
+  let set := HashSet.insertMany mkHashSet res
+  return set.toArray
 
 structure BFSState :=
   (g : HashMap Name (List Name))
@@ -83,9 +106,10 @@ def nameToString (n : Name) : String :=
 -- Convert a Name and List Name pair to JSON
 def pairToJson (pair : Name × List Name) : TermElabM Json := do
   let nameStr := nameToString pair.fst
-  let typeStr ← (getConstType pair.fst)
+  let constCategoryStr ← (getConstType pair.fst)
   let nameListStr := pair.snd.map nameToString
-  return Json.mkObj [("name", Json.str nameStr),("constType", Json.str typeStr), ("references", Json.arr (nameListStr.map Json.str).toArray)]
+  let constTypeStr ← getTypeStr pair.fst
+  return Json.mkObj [("name", Json.str nameStr),("constCategory", Json.str constCategoryStr), ("constType", constTypeStr), ("references", Json.arr (nameListStr.map Json.str).toArray)]
 
 -- Serialize a List (Name, List Name) to JSON
 def serializeList (l : List (Name × List Name)) : TermElabM Json := do
@@ -105,4 +129,4 @@ def serializeAndWriteToFile (s : MetaM Syntax) (depth : Nat) := do
 
 -- In the line below, replace `Nat.add_comm` with your name and uncomment it to get the JSON file
 
--- #eval serializeAndWriteToFile `(Nat.zero_add) 7
+-- #eval serializeAndWriteToFile `(Nat.add_comm) 7
