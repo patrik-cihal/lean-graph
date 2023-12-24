@@ -4,7 +4,7 @@ use lean_dependency_graph::SERVER_ADDR;
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions::default();
-    let data_raw = std::fs::read_to_string("Nat.zero_add.json").unwrap();
+    let data_raw = std::fs::read_to_string("static/Nat.zero_add.json").unwrap();
     eframe::run_native(
         "lean graph",
         native_options,

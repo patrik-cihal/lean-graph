@@ -12,7 +12,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     future::Future,
     sync::{Arc, RwLock},
-    time::Duration,
+    time::Duration, f32::consts::PI,
 };
 
 use eframe::{App, CreationContext};
@@ -493,8 +493,10 @@ fn load_graph(default_file_raw: String) -> G {
 }
 
 fn random_location(size: f32) -> Pos2 {
-    let mut rng = rand::thread_rng();
-    Pos2::new(rng.gen_range(0. ..size), rng.gen_range(0. ..size))
+    let rnd_angle = random::<f32>()*2.*PI;
+    let rnd_dist = random::<f32>().sqrt()*size;
+    let pos =  Pos2::new(rnd_angle.cos(), rnd_angle.sin()) * rnd_dist;
+    pos
 }
 
 pub async fn read_graph_file_dialog() -> Option<String> {
