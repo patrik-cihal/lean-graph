@@ -5,14 +5,10 @@ import Lean.Meta.Basic
 import Lean.Message
 open Lean Elab Term Meta
 
-
-def getExpr (x : MetaM Syntax) : TermElabM Expr := do
+def getExpr (x : TermElabM Syntax) : TermElabM Expr := do
   let synt ← x
   elabTerm synt none
 
-def getConstName (x : MetaM Syntax) := do
-  let expr ← getExpr x
-  return expr.constName!
 
 def getTypeStr (n : Name) := do
   let inf ← getConstInfo n
@@ -20,7 +16,7 @@ def getTypeStr (n : Name) := do
   let dat ← ppExpr t
   return s!"{dat}"
 
-def getTypeExpr (n : Name) : MetaM Expr := do
+def getTypeExpr (n : Name) : TermElabM Expr := do
   let inf ← getConstInfo n
   let t := inf.toConstantVal.type
   return t
@@ -33,13 +29,13 @@ def getConstType (n : Name) : TermElabM String := do
     | ConstantInfo.axiomInfo _ => "Axiom"
     | _ => "Other"
 
-def getConstantBody (n : Name) : MetaM (Option Expr) := do
+def getConstantBody (n : Name) : TermElabM (Option Expr) := do
   let constInfo ← getConstInfo n
   let constValue := constInfo.value?
   return constValue
 
 
-def getAllConstsFromConst (n : Name) : MetaM (Array Name) := do
+def getAllConstsFromConst (n : Name) : TermElabM (Array Name) := do
   let body ← getConstantBody n
   let type ← getTypeExpr n
   let consts1 := match body with
@@ -50,11 +46,17 @@ def getAllConstsFromConst (n : Name) : MetaM (Array Name) := do
   let set := HashSet.insertMany mkHashSet res
   return set.toArray
 
+def getAllConstsFromNamespace (n : String) : TermElabM (List Name) := do
+  let env ← getEnv
+  let consts := env.constants.fold (fun res name _ => if name.getRoot.toString == n then name :: res else res) []
+  return consts.toArray.toList
+
+
 structure BFSState :=
   (g : HashMap Name (List Name))
   (outerLayer : List Name)
 
-def getUsedConstantGraph (name : Name) (depth : Nat) : TermElabM (List (Name × List Name)) := do
+def getUsedConstantGraph (names : List Name) (depth : Nat) : TermElabM (List (Name × List Name)) := do
 
   -- make bfs from the specified root node
 
@@ -66,14 +68,15 @@ def getUsedConstantGraph (name : Name) (depth : Nat) : TermElabM (List (Name × 
 
   -- then we extract the outer layer from the new nodes by looking at the children and checking whether they are already in the graph
 
-
   let state ← (List.range depth).foldlM (fun (state : BFSState) (_ : Nat) => do
     let g := state.g
     let outerLayer := state.outerLayer
 
+
     let newNodes ← outerLayer.mapM fun name => do
-      let consts ← getAllConstsFromConst name
-      return (name, consts)
+      let consts ← try getAllConstsFromConst name catch | _ => pure #[]
+      pure (name, consts)
+
 
     let g := newNodes.foldl (fun m p => m.insert p.fst p.snd.toList) g
     let newOuterLayer := newNodes.foldl (fun (set : HashSet Name) (node : Name × Array Name) =>
@@ -83,7 +86,7 @@ def getUsedConstantGraph (name : Name) (depth : Nat) : TermElabM (List (Name × 
 
     return BFSState.mk g newOuterLayer
   )
-    (BFSState.mk mkHashMap [name])
+    (BFSState.mk mkHashMap names)
 
 
 
@@ -104,29 +107,48 @@ def nameToString (n : Name) : String :=
 
 
 -- Convert a Name and List Name pair to JSON
-def pairToJson (pair : Name × List Name) : TermElabM Json := do
+def pairToJson (pair : Name × List Name) : TermElabM (Option Json) := do
   let nameStr := nameToString pair.fst
-  let constCategoryStr ← (getConstType pair.fst)
+  let constCategoryStr ← try (getConstType pair.fst) catch | _ => return none
   let nameListStr := pair.snd.map nameToString
   let constTypeStr ← getTypeStr pair.fst
   return Json.mkObj [("name", Json.str nameStr),("constCategory", Json.str constCategoryStr), ("constType", constTypeStr), ("references", Json.arr (nameListStr.map Json.str).toArray)]
 
 -- Serialize a List (Name, List Name) to JSON
 def serializeList (l : List (Name × List Name)) : TermElabM Json := do
-  let res ← (l.mapM pairToJson)
+  let res ← (l.filterMapM pairToJson)
   return Json.arr res.toArray
 
+inductive Source
+| Namespace (n : String)
+| Constant (s : TermElabM Syntax)
 
-def serializeAndWriteToFile (s : MetaM Syntax) (depth : Nat) := do
-  let expr ← getExpr s
-  let name := expr.constName!
 
-  let g ← getUsedConstantGraph name depth
+def getConstsFromSource (s : Source) : TermElabM (List Name) := do
+  match s with
+  | Source.Namespace n => do
+    (getAllConstsFromNamespace n)
+  | Source.Constant snt => do
+    let expr ← getExpr snt
+    let name := expr.constName!
+    return [name]
+
+
+def serializeAndWriteToFile (source : Source) (depth : Nat) : TermElabM Unit := do
+  let consts ← getConstsFromSource source
+  let name ← match source with
+    | Source.Namespace n => do
+      pure n
+    | Source.Constant s => do
+      let expr ← getExpr s
+      pure (expr.constName!).toString
+
+  let g ← getUsedConstantGraph consts depth
   let js ←  serializeList g
   let _ ← writeJsonToFile ((toString name).append ".json") js
 
 
+-- Edit and uncomment one of the lines below to get your .json file created in the current workspace folder
 
--- In the line below, replace `Nat.add_comm` with your name and uncomment it to get the JSON file
-
--- #eval serializeAndWriteToFile `(Nat.add_comm) 7
+-- #eval serializeAndWriteToFile (Source.Constant `(@Nat.add_zero)) 7
+-- #eval serializeAndWriteToFile (Source.Namespace "Nat") 2
