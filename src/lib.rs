@@ -5,7 +5,7 @@ use edge_shape::EdgeShape;
 use node_shape::NodeShape;
 use rfd::AsyncFileDialog;
 
-const STATIC_JSON_FILES: [&str; 5] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json", "Cardinal.cantor.json", "Continuous.deriv_integral.json", "fermatLastTheoremFour.json"];
+const STATIC_JSON_FILES: [&str; 6] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json", "Cardinal.cantor.json", "Continuous.deriv_integral.json", "fermatLastTheoremFour.json", "PFR_conjecture.json"];
 pub const SERVER_ADDR: &str = "https://lean-graph.com";
 
 use std::{
