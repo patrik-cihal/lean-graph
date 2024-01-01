@@ -17,6 +17,7 @@ fn main() {
     // Redirect `log` message to `console.log` and friends:
 
     use lean_dependency_graph::read_graph_url;
+    use lean_dependency_graph::SERVER_ADDR;
 
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
