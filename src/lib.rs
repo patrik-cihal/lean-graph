@@ -9,16 +9,16 @@ const STATIC_JSON_FILES: [&str; 6] = ["Nat.zero_add.json", "Nat.prime_of_coprime
 pub const SERVER_ADDR: &str = "https://lean-graph.com";
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, BinaryHeap},
     future::Future,
     sync::{Arc, RwLock},
-    time::Duration, f32::consts::PI,
+    time::Duration, f32::consts::PI, cmp::Reverse,
 };
 
 use eframe::{App, CreationContext};
-use egui::{Color32, Pos2, Slider, Vec2, Visuals, Hyperlink};
+use egui::{Color32, Pos2, Slider, Vec2, Visuals, Hyperlink, emath::align::center_size_in_rect};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
-use petgraph::{Directed, stable_graph::StableGraph};
+use petgraph::{Directed, stable_graph::StableGraph, graph::NodeIndex};
 use rand::{random, Rng};
 use serde::Deserialize;
 
@@ -92,19 +92,21 @@ impl NodePayload {
 type G = egui_graphs::Graph<NodePayload, (), Directed, u32, NodeShape, EdgeShape>;
 
 struct ForceSettings {
-    b_force: f32,
     r_force: f32,
+    r_size: f32,
     e_force: f32,
+    b_force: f32,
     stiffness: f32,
 }
 
 impl Default for ForceSettings {
     fn default() -> Self {
         Self {
-            b_force: 0.0005,
             r_force: 400.,
             e_force: 0.001,
+            b_force: 0.05,
             stiffness: 0.5,
+            r_size: 200.
         }
     }
 }
@@ -115,7 +117,7 @@ struct ColoringSettings {
 
 impl Default for ColoringSettings {
     fn default() -> Self {
-        Self { color_loss: 0.8 }
+        Self { color_loss: 0.5 }
     }
 }
 
@@ -218,7 +220,8 @@ impl MApp {
         }
     }
     fn simulate_force_graph(&mut self, dt: f32) {
-        let indices = self.fg.g.node_indices().collect::<Vec<_>>();
+        let mut indices = self.fg.g.node_indices().collect::<Vec<_>>();
+        if indices.len() == 0 { return };
 
         let neighbors = indices
             .iter()
@@ -228,11 +231,10 @@ impl MApp {
             })
             .collect::<HashMap<_, _>>();
 
+        // Simulate edge attraction
         for &ni in &indices {
-            for &oni in &indices {
-                if ni == oni {
-                    continue;
-                }
+            let mut cvel = self.fg.g[ni].payload().vel;
+            for &oni in &neighbors[&ni] {
                 let pos = self.fg.node(ni).unwrap().location();
                 let opos = self.fg.node(oni).unwrap().location();
 
@@ -240,29 +242,87 @@ impl MApp {
                 let dis = dir.length();
                 let dir = dir.normalized();
 
-                let bacc = self.force_settings.b_force * dis;
-
-                let racc = -(self.force_settings.r_force / (dis.sqrt()));
 
                 let eacc = self.force_settings.e_force * dis * dis;
 
                 let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
 
-                let tot_acc = mr
-                    * (bacc
-                        + racc
-                        + if neighbors[&ni].contains(&oni) {
-                            eacc
-                        } else {
-                            0.
-                        });
+                let tot_acc = mr * eacc;
 
-                let cvel = self.fg.node_mut(ni).unwrap().payload().vel;
-                self.fg.node_mut(ni).unwrap().payload_mut().vel =
-                    cvel - (cvel * self.force_settings.stiffness * dt) + tot_acc * 0.01 * dt * dir;
-                self.fg.node_mut(ni).unwrap().set_location(pos + cvel * dt);
+                cvel += tot_acc * dt * dir;
             }
+
+            self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel;
         }
+
+        // Simulate repulsion
+        // Create a sliding range of size RANGE_SIZE, over the nodes
+        indices.sort_by(|&ni1, &ni2| self.fg.g[ni1].props().location.x.partial_cmp(&self.fg.g[ni2].props().location.x).unwrap());
+        let mut bh = BinaryHeap::<Reverse<(i64, NodeIndex<u32>)>>::new();
+        for &ni in &indices {
+            let pos = self.fg.g[ni].location();
+            while let Some(Reverse((x, oni))) = bh.pop() {
+                if pos.x as i64 - x <= self.force_settings.r_size as i64 {
+                    bh.push(Reverse((x, oni)));
+                    break;
+                }
+            }
+
+            for &Reverse((_, oni)) in &bh {
+                let opos = self.fg.g[oni].location();
+
+                let dir = opos - pos;
+                let dis = dir.length();
+                let dir = dir.normalized();
+
+                if dis > self.force_settings.r_size {
+                    continue;
+                }
+
+                let racc = -(self.force_settings.r_force * (self.force_settings.r_size-dis));
+                let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
+
+                let racc_dt = (racc*dt);
+
+                self.fg.g[ni].payload_mut().vel += mr * racc_dt * dir;
+                self.fg.g[oni].payload_mut().vel += (1./mr) * racc_dt * (-dir);
+            }
+
+            bh.push(Reverse((pos.x as i64, ni)));
+        }
+
+        // Apply bounding force
+        let mut center_of_mass = (Vec2::ZERO, 0.);
+
+        for &ni in &indices {
+            let mass = self.fg.g[ni].payload().mass();
+            let loc = self.fg.g[ni].location().to_vec2();
+            let tot_mass = center_of_mass.1 + mass;
+            center_of_mass.0 = (center_of_mass.1 * center_of_mass.0 + mass * loc) / tot_mass;
+            center_of_mass.1 = tot_mass;
+        }
+
+        let center_of_mass = center_of_mass.0;
+        for &ni in &indices {
+            let dir =  center_of_mass - self.fg.g[ni].location().to_vec2();
+            let dis = dir.length();
+            let dir = dir.normalized();
+
+            let bacc = dis*self.force_settings.b_force;
+            self.fg.g[ni].payload_mut().vel += bacc * dt * dir;
+        }
+
+        for &ni in &indices {
+            let mut cvel = self.fg.g[ni].payload().vel;
+            cvel = cvel * (1. - (self.force_settings.stiffness));
+            const SPEED_LIMIT: f32 = 10000.;
+            cvel = if (cvel.length() > SPEED_LIMIT) {cvel.normalized()*SPEED_LIMIT} else {cvel};
+            let pos = self.fg.g[ni].location();
+            self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel;
+            self.fg.node_mut(ni).unwrap().set_location(pos + cvel * dt);
+        }
+
+
     }
     fn draw_ui(&mut self, ctx: &eframe::egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -353,15 +413,20 @@ impl MApp {
                     &mut self.force_settings.e_force,
                     (0.0)..=(0.002),
                 ));
-                ui.label("General bounding");
-                ui.add(Slider::new(
-                    &mut self.force_settings.b_force,
-                    (0.0)..=(0.002),
-                ));
-                ui.label("Repulsion");
+                ui.label("Repulsion force");
                 ui.add(Slider::new(
                     &mut self.force_settings.r_force,
                     (10.)..=(1000.),
+                ));
+                ui.label("Republsion size");
+                ui.add(Slider::new(
+                    &mut self.force_settings.r_size,
+                    (50.)..=(1000.),
+                ));
+                ui.label("Center bounding");
+                ui.add(Slider::new(
+                    &mut self.force_settings.b_force,
+                    (0.)..=(0.5)
                 ));
                 ui.label("Stifness");
                 ui.add(Slider::new(&mut self.force_settings.stiffness, (0.)..=1.));
@@ -452,7 +517,7 @@ impl App for MApp {
         self.update_filter_graph();
         let ct = now();
         let dt = (ct.clone() - self.last_update.unwrap_or(ct)).as_secs_f32();
-        self.simulate_force_graph(dt.min(0.05));
+        self.simulate_force_graph(dt.min(0.032));
         self.last_update = Some(ct);
         self.color_nodes();
         self.draw_ui(ctx);
