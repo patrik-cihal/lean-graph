@@ -26,6 +26,7 @@ Ideal case:
 - After selecting a node, user should be able to see more specifically what that node depends on
 
 ### Additional features
+- Sharing of visualizations
 - After clicking on node, allow for seeing the documentation
 - Lazy loading of depending nodes
 - Option to visualize any Mathlib constant, without the need of running script locally
