@@ -195,9 +195,12 @@ impl MApp {
             }
         }
 
+        const SELECTED_MP: f32 = 3.;
+
         for &ni in &topo_sort {
             let color = self.fg.g.node_weight(ni).unwrap().payload().color;
             let size = self.fg.g[ni].payload().size;
+            let size = if self.fg.g[ni].selected() {size*SELECTED_MP} else {size};
             // add cur color to comp color
             let comp_color = self.fg.g[ni].payload_mut().comp_color;
             self.fg.g[ni].payload_mut().comp_color.0 = [
