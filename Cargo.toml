@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.24.1"
-egui = "0.24.1"
-egui_graphs = { git = "https://github.com/patrik-cihal/egui_graphs", features = ["events"], branch = "v3" }
-petgraph = "0.6.4"
+egui = {version="0.24.1", features=["serde"]}
+egui_graphs = { git = "https://github.com/patrik-cihal/egui_graphs", features = ["events", "serde"], branch = "v3" }
+petgraph = { version = "0.6", features = ["serde", "serde_derive", "serde-1"] }
 rand = "0.8.5"
 rfd = "0.12.1"
 serde = { version = "1.0.193", features = ["derive"] }

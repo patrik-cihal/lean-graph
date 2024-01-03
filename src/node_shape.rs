@@ -6,10 +6,11 @@ use egui::{
 };
 use egui_graphs::{DisplayNode, DrawContext, NodeProps};
 use petgraph::{stable_graph::IndexType, EdgeType};
+use serde::{Serialize, Deserialize};
 
 use crate::{col_ft, ConstCategory, NodePayload};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeShape {
     pub pos: Pos2,
 

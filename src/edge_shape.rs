@@ -6,10 +6,11 @@ use egui::{
 };
 use egui_graphs::{DisplayEdge, DisplayNode, DrawContext, EdgeProps, Node};
 use petgraph::{stable_graph::IndexType, EdgeType};
+use serde::{Deserialize, Serialize};
 
 use crate::{col_ft, NodePayload};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EdgeShape {
     pub order: usize,
     pub selected: bool,

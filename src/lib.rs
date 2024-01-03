@@ -18,9 +18,9 @@ use std::{
 use eframe::{App, CreationContext};
 use egui::{Color32, Pos2, Slider, Vec2, Visuals, Hyperlink, emath::align::center_size_in_rect};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
-use petgraph::{Directed, stable_graph::StableGraph, graph::NodeIndex};
+use petgraph::{stable_graph::StableGraph, graph::NodeIndex, EdgeType};
 use rand::{random, Rng};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub fn now() -> std::time::Duration {
     std::time::Duration::from_millis(chrono::Local::now().timestamp_millis() as u64)
@@ -34,7 +34,16 @@ fn col_ft(c: [f32; 3]) -> Color32 {
     )
 }
 
-#[derive(Deserialize, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Directed {}
+
+impl EdgeType for Directed {
+    fn is_directed() -> bool {
+        true 
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
 enum ConstCategory {
     Theorem,
     Definition,
@@ -51,7 +60,7 @@ struct NodeData {
     const_type: String
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct NodePayload {
     name: String,
     vel: Vec2,
@@ -91,6 +100,7 @@ impl NodePayload {
 
 type G = egui_graphs::Graph<NodePayload, (), Directed, u32, NodeShape, EdgeShape>;
 
+#[derive(Serialize, Deserialize, Clone)]
 struct ForceSettings {
     r_force: f32,
     r_size: f32,
@@ -111,6 +121,7 @@ impl Default for ForceSettings {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 struct ColoringSettings {
     color_loss: f32,
 }
@@ -121,15 +132,46 @@ impl Default for ColoringSettings {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+struct FilterSettings {
+    node_type_filter: BTreeMap<ConstCategory, bool>,
+    outer_edge_cnt_filter: usize,
+}
+
+impl Default for FilterSettings {
+    fn default() -> Self {
+        let mut node_type_filter = BTreeMap::new();
+
+        node_type_filter.insert(ConstCategory::Axiom, true);
+        node_type_filter.insert(ConstCategory::Definition, true);
+        node_type_filter.insert(ConstCategory::Theorem, true);
+        node_type_filter.insert(ConstCategory::Other, false);
+
+        Self {
+            node_type_filter,
+            outer_edge_cnt_filter: 10
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct StoredData {
+    g: G,
+    force_settings: ForceSettings,
+    filter_settings: FilterSettings,
+    coloring_settings: ColoringSettings
+}
+
 pub struct MApp {
     g: Arc<RwLock<G>>,
     g_updated: Arc<RwLock<bool>>,
     fg: G,
-    last_update: Option<Duration>,
+    last_update: Duration,
     force_settings: ForceSettings,
-    node_type_filter: BTreeMap<ConstCategory, bool>,
-    outer_edge_cnt_filter: usize,
+    filter_settings: FilterSettings,
     coloring_settings: ColoringSettings,
+    data_to_load: Arc<RwLock<Option<StoredData>>>,
+    fit_to_screen: Arc<RwLock<bool>>,
 }
 
 impl MApp {
@@ -141,22 +183,17 @@ impl MApp {
         ctx.egui_ctx.set_fonts(fonts);
 
         let g = load_graph(default_file_raw);
-        let mut node_type_filter = BTreeMap::new();
-
-        node_type_filter.insert(ConstCategory::Axiom, true);
-        node_type_filter.insert(ConstCategory::Definition, true);
-        node_type_filter.insert(ConstCategory::Theorem, true);
-        node_type_filter.insert(ConstCategory::Other, false);
 
         Self {
             g: Arc::new(RwLock::new(g.clone())),
             g_updated: Default::default(),
-            last_update: None,
+            last_update: now(),
             force_settings: Default::default(),
-            node_type_filter,
             fg: g,
-            outer_edge_cnt_filter: 10,
+            filter_settings: Default::default(),
             coloring_settings: Default::default(),
+            data_to_load: Default::default(),
+            fit_to_screen: Default::default()
         }
     }
     fn color_nodes(&mut self) {
@@ -340,7 +377,8 @@ impl MApp {
             let style_settings = &SettingsStyle::new().with_labels_always(true);
             let navigations_settings = &SettingsNavigation::new()
                 .with_zoom_and_pan_enabled(true)
-                .with_fit_to_screen_enabled(false);
+                .with_fit_to_screen_enabled(*self.fit_to_screen.read().unwrap());
+            *self.fit_to_screen.write().unwrap() = false;
 
             ui.add(
                 &mut GraphView::new(&mut self.fg)
@@ -383,9 +421,10 @@ impl MApp {
                         }
                     }
                 });
-                if ui.button("Open local").clicked() {
+                if ui.button("Open extracted data").clicked() {
                     let gc = self.g.clone();
                     let guc = self.g_updated.clone();
+                    let ftsc = self.fit_to_screen.clone();
                     spawn_local(async move {
                         let Some(ng_raw) = read_graph_file_dialog().await else {
                             return;
@@ -393,7 +432,32 @@ impl MApp {
                         let ng = load_graph(ng_raw);
                         *gc.write().unwrap() = ng.clone();
                         *guc.write().unwrap() = true;
+                        *ftsc.write().unwrap() = true;
                     });
+                }
+                if ui.button("Open stored visualization").clicked() {
+                    let data_to_load = self.data_to_load.clone();
+                    spawn_local(async move {
+                        let Some(data_raw) = read_raw_stored_data_file_dialog().await else {
+                            return;
+                        };
+                        let stored_data = serde_json::from_str::<StoredData>(&data_raw);
+                        if let Ok(stored_data) = stored_data {
+                            *data_to_load.write().unwrap() = Some(stored_data);
+                        }
+                        else {
+                            return;
+                        }
+                    })
+                }
+                if ui.button("Save visualization").clicked() {
+                    let data_to_store = serde_json::to_string(&self.save_viz()).unwrap();
+                    spawn_local(async move {
+                        let Some(file_handle) = AsyncFileDialog::new().add_filter("Lean Graph", &["leangraph"]).set_file_name("untitled.leangraph").save_file().await else {
+                            return;
+                        };
+                        file_handle.write(data_to_store.as_bytes()).await.unwrap();
+                    })
                 }
                 if ui.button("Download dependency extractor").clicked() {
                     spawn_local(async move {
@@ -449,25 +513,25 @@ impl MApp {
 
             ui.collapsing("Filter", |ui| {
                 ui.checkbox(
-                    self.node_type_filter.get_mut(&ConstCategory::Axiom).unwrap(),
+                    self.filter_settings.node_type_filter.get_mut(&ConstCategory::Axiom).unwrap(),
                     "Axioms",
                 );
                 ui.checkbox(
-                    self.node_type_filter.get_mut(&ConstCategory::Theorem).unwrap(),
+                    self.filter_settings.node_type_filter.get_mut(&ConstCategory::Theorem).unwrap(),
                     "Theorems",
                 );
                 ui.checkbox(
-                    self.node_type_filter
+                    self.filter_settings.node_type_filter
                         .get_mut(&ConstCategory::Definition)
                         .unwrap(),
                     "Definitions",
                 );
                 ui.checkbox(
-                    self.node_type_filter.get_mut(&ConstCategory::Other).unwrap(),
+                    self.filter_settings.node_type_filter.get_mut(&ConstCategory::Other).unwrap(),
                     "Other",
                 );
                 ui.label("Max node out-degree");
-                ui.add(Slider::new(&mut self.outer_edge_cnt_filter, 1..=1000));
+                ui.add(Slider::new(&mut self.filter_settings.outer_edge_cnt_filter, 1..=1000));
             });
 
             ui.collapsing("Style", |ui| {
@@ -480,7 +544,11 @@ impl MApp {
                         ui.ctx().set_visuals(Visuals::dark());
                     }
                 }
+                if ui.button("Fit to screen").clicked() {
+                    *self.fit_to_screen.write().unwrap() = true;
+                }
             });
+
 
             ui.allocate_space(ui.available_size()-Vec2::Y*30.);
 
@@ -490,7 +558,6 @@ impl MApp {
             });
         });
     }
-
     fn update_filter_graph(&mut self) {
         let mut g = self.g.write().unwrap();
         if !*self.g_updated.read().unwrap() {
@@ -502,8 +569,8 @@ impl MApp {
         *self.g_updated.write().unwrap() = false;
         self.fg = G::new(g.g.filter_map(
             |ni, node| {
-                if self.node_type_filter[&node.payload().const_category]
-                    && g.g.neighbors(ni).count() <= self.outer_edge_cnt_filter
+                if self.filter_settings.node_type_filter[&node.payload().const_category]
+                    && g.g.neighbors(ni).count() <= self.filter_settings.outer_edge_cnt_filter
                 {
                     Some(node.clone())
                 } else {
@@ -513,15 +580,40 @@ impl MApp {
             |_, edge| Some(edge.clone()),
         ));
     }
+    fn save_viz(&self) -> StoredData {
+        StoredData {
+            filter_settings: self.filter_settings.clone(),
+            force_settings: self.force_settings.clone(),
+            g: self.g.read().unwrap().clone(),
+            coloring_settings: self.coloring_settings.clone(),
+        }
+    }
+    fn load_stored_data(&mut self, data: StoredData) {
+        *self.g.write().unwrap() = data.g;
+        *self.g_updated.write().unwrap() = true;
+        self.last_update = now();
+        self.force_settings = data.force_settings;
+        self.filter_settings = data.filter_settings;
+        self.coloring_settings = data.coloring_settings;
+        *self.fit_to_screen.write().unwrap() = true;
+    }
 }
 
 impl App for MApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        let mut data_to_load_write = self.data_to_load.write().unwrap();
+        if let Some(data_to_load) = data_to_load_write.take() {
+            drop(data_to_load_write);
+            self.load_stored_data(data_to_load);
+        }
+        else {
+            drop(data_to_load_write);
+        }
         self.update_filter_graph();
         let ct = now();
-        let dt = (ct.clone() - self.last_update.unwrap_or(ct)).as_secs_f32();
+        let dt = (ct.clone() - self.last_update).as_secs_f32();
         self.simulate_force_graph(dt.min(0.032));
-        self.last_update = Some(ct);
+        self.last_update = ct;
         self.color_nodes();
         self.draw_ui(ctx);
     }
@@ -529,7 +621,7 @@ impl App for MApp {
 
 fn load_graph(default_file_raw: String) -> G {
     let nodes = serde_json::from_str::<Vec<NodeData>>(&default_file_raw).unwrap();
-    let mut sg = StableGraph::new();
+    let mut sg = StableGraph::<_, _, Directed, _>::default();
 
     let spawn_radius = (nodes.len() as f32).sqrt() * 1000.;
 
@@ -578,6 +670,19 @@ pub async fn read_graph_file_dialog() -> Option<String> {
     let data_raw = file_handle.read().await;
     Some(String::from_utf8(data_raw).unwrap())
 }
+
+pub async fn read_raw_stored_data_file_dialog() -> Option<String> {
+    let Some(file_handle) = AsyncFileDialog::new()
+        .add_filter("Lean Graph", &["leangraph"])
+        .pick_file()
+        .await
+    else {
+        return None;
+    };
+    let data_raw = file_handle.read().await;
+    Some(String::from_utf8(data_raw).unwrap())
+}
+
 
 pub async fn read_graph_url(url: &str) -> Result<String, reqwest::Error> {
     let resp = reqwest::get(url).await?;
