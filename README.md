@@ -18,13 +18,6 @@ Interactive visualization of dependencies for any theorem/definitions in your Le
 
 ## What's next
 
-### Visualization improvements 
-As it is now, it is hard to visualize large theorems without getting lost, improvement of the force graph algorithm but more importantly the coloring and visualization of individual nodes are needed.
-Ideal case:
-- Related theorems and lemmas should be clustered together and have shades of similar colors
-- More relevant / larger definitions should be more visible and easier to find
-- After selecting a node, user should be able to see more specifically what that node depends on
-
 ### Additional features
 - After clicking on node, allow for seeing the documentation
 - Lazy loading of depending nodes
