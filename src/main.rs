@@ -3,11 +3,10 @@ use lean_graph::MApp;
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions::default();
-    let data_raw = std::fs::read_to_string("static/Nat.zero_add.json").unwrap();
     eframe::run_native(
         "lean graph",
         native_options,
-        Box::new(|cc| Box::new(MApp::new(cc, data_raw))),
+        Box::new(|cc| Box::new(MApp::new(cc, None))),
     )
 }
 

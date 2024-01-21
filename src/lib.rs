@@ -17,7 +17,7 @@ use std::{
 
 use eframe::{App, CreationContext};
 use egui::{Color32, Pos2, Slider, Vec2, Visuals, Hyperlink};
-use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
+use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle, Graph};
 use petgraph::{stable_graph::StableGraph, graph::NodeIndex, EdgeType};
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -175,14 +175,14 @@ pub struct MApp {
 }
 
 impl MApp {
-    pub fn new(ctx: &CreationContext<'_>, default_file_raw: String) -> Self {
+    pub fn new(ctx: &CreationContext<'_>, default_file_raw: Option<String>) -> Self {
         // setup font that support math characters
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert("noto_sans_math".into(), egui::FontData::from_static(include_bytes!("../static/NotoSansMath-Regular.ttf")));
         fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "noto_sans_math".into());
         ctx.egui_ctx.set_fonts(fonts);
 
-        let g = load_graph(default_file_raw);
+        let g = if let Some(default_file_raw) = default_file_raw {load_graph(default_file_raw) } else {Graph::new(Default::default())};
 
         Self {
             g: Arc::new(RwLock::new(g.clone())),
