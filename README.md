@@ -10,7 +10,7 @@ Interactive visualization of dependencies for any theorem/definitions in your Le
 ### Run in your browser: [lean-graph.com](https://lean-graph.com/)
 
 ### Run locally
-1. Get ![Rustup](https://rustup.rs/)
+1. Get [Rustup](https://rustup.rs/)
 2. Install `Lean Graph` by executing this command in your terminal: ```cargo install --git "https://github.com/patrik-cihal/lean-graph"```
 3. Run `Lean Graph` from the terminmal under the name `lean-graph`
 
