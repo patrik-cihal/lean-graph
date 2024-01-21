@@ -175,14 +175,14 @@ pub struct MApp {
 }
 
 impl MApp {
-    pub fn new(ctx: &CreationContext<'_>, default_file_raw: Option<String>) -> Self {
+    pub fn new(ctx: &CreationContext<'_>, default_file_raw: String) -> Self {
         // setup font that support math characters
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert("noto_sans_math".into(), egui::FontData::from_static(include_bytes!("../static/NotoSansMath-Regular.ttf")));
         fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "noto_sans_math".into());
         ctx.egui_ctx.set_fonts(fonts);
 
-        let g = if let Some(default_file_raw) = default_file_raw {load_graph(default_file_raw) } else {Graph::new(Default::default())};
+        let g = load_graph(default_file_raw);
 
         Self {
             g: Arc::new(RwLock::new(g.clone())),

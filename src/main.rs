@@ -1,4 +1,5 @@
 use lean_graph::MApp;
+mod __file_nat_zero;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
@@ -6,7 +7,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "lean graph",
         native_options,
-        Box::new(|cc| Box::new(MApp::new(cc, None))),
+        Box::new(|cc| Box::new(MApp::new(cc, __file_nat_zero::DATA.into()))),
     )
 }
 
