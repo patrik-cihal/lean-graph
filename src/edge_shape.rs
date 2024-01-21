@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use egui::{
-    epaint::{CubicBezierShape, QuadraticBezierShape},
+    epaint::CubicBezierShape,
     Color32, Pos2, Shape, Stroke, Vec2,
 };
 use egui_graphs::{DisplayEdge, DisplayNode, DrawContext, EdgeProps, Node};
@@ -219,39 +219,6 @@ fn shape_looped(
     )
 }
 
-fn shape_curved(
-    pos_start: Pos2,
-    pos_end: Pos2,
-    size_start: f32,
-    size_end: f32,
-    stroke: Stroke,
-    e: &EdgeShape,
-) -> QuadraticBezierShape {
-    let vec = pos_end - pos_start;
-    let dist: f32 = vec.length();
-    let dir = vec / dist;
-
-    let start_node_radius_vec = Vec2::new(size_start, size_start) * dir;
-    let end_node_radius_vec = Vec2::new(size_end, size_end) * dir;
-
-    let tip_end = pos_start + vec - end_node_radius_vec;
-
-    let edge_start = pos_start + start_node_radius_vec;
-    let edge_end = pos_end + end_node_radius_vec;
-
-    let dir_perpendicular = Vec2::new(-dir.y, dir.x);
-    let center_point = (edge_start + tip_end.to_vec2()).to_vec2() / 2.0;
-    let control_point =
-        (center_point + dir_perpendicular * e.curve_size * e.order as f32).to_pos2();
-
-    QuadraticBezierShape::from_points_stroke(
-        [edge_start, control_point, edge_end],
-        false,
-        stroke.color,
-        stroke,
-    )
-}
-
 fn node_size<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>(
     node: &Node<N, E, Ty, Ix, D>,
 ) -> f32 {
@@ -262,79 +229,8 @@ fn node_size<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, 
     (connector_right.x - connector_left.x) / 2.
 }
 
-/// Returns the distance from line segment `a``b` to point `c`.
-/// Adapted from https://stackoverflow.com/questions/1073336/circle-line-segment-collision-detection-algorithm
-fn distance_segment_to_point(a: Pos2, b: Pos2, point: Pos2) -> f32 {
-    let ac = point - a;
-    let ab = b - a;
-
-    let d = a + proj(ac, ab);
-
-    let ad = d - a;
-
-    let k = if ab.x.abs() > ab.y.abs() {
-        ad.x / ab.x
-    } else {
-        ad.y / ab.y
-    };
-
-    if k <= 0.0 {
-        return hypot2(point.to_vec2(), a.to_vec2()).sqrt();
-    } else if k >= 1.0 {
-        return hypot2(point.to_vec2(), b.to_vec2()).sqrt();
-    }
-
-    hypot2(point.to_vec2(), d.to_vec2()).sqrt()
-}
-
-/// Calculates the square of the Euclidean distance between vectors `a` and `b`.
-fn hypot2(a: Vec2, b: Vec2) -> f32 {
-    (a - b).dot(a - b)
-}
-
-/// Calculates the projection of vector `a` onto vector `b`.
-fn proj(a: Vec2, b: Vec2) -> Vec2 {
-    let k = a.dot(b) / b.dot(b);
-    Vec2::new(k * b.x, k * b.y)
-}
-
-fn is_point_on_cubic_bezier_curve(point: Pos2, curve: CubicBezierShape, width: f32) -> bool {
-    is_point_on_bezier_curve(point, curve.flatten(Some(10.)), width)
-}
-
-fn is_point_on_quadratic_bezier_curve(
-    point: Pos2,
-    curve: QuadraticBezierShape,
-    width: f32,
-) -> bool {
-    is_point_on_bezier_curve(point, curve.flatten(Some(0.3)), width)
-}
-
-fn is_point_on_bezier_curve(point: Pos2, curve_points: Vec<Pos2>, width: f32) -> bool {
-    let mut previous_point = None;
-    for p in curve_points {
-        if let Some(pp) = previous_point {
-            let distance = distance_segment_to_point(p, pp, point);
-            if distance < width {
-                return true;
-            }
-        }
-        previous_point = Some(p);
-    }
-    false
-}
-
-/// rotates vector by angle
 fn rotate_vector(vec: Vec2, angle: f32) -> Vec2 {
     let cos = angle.cos();
     let sin = angle.sin();
     Vec2::new(cos * vec.x - sin * vec.y, sin * vec.x + cos * vec.y)
-}
-
-/// finds point exactly in the middle between 2 points
-fn point_between(p1: Pos2, p2: Pos2) -> Pos2 {
-    let base = p1 - p2;
-    let base_len = base.length();
-    let dir = base / base_len;
-    p1 - (base_len / 2.) * dir
 }
