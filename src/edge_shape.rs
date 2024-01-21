@@ -69,7 +69,15 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
             color.r(),
             color.g(),
             color.b(),
-            if end.selected() { 230 } else { if ctx.ctx.style().visuals.dark_mode {50} else {180} },
+            if end.selected() {
+                230
+            } else {
+                if ctx.ctx.style().visuals.dark_mode {
+                    50
+                } else {
+                    180
+                }
+            },
         );
 
         let mp = start.payload().size.min(end.payload().size);
@@ -99,34 +107,34 @@ impl<E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<NodePayload, E, Ty, I
         let stroke_edge = Stroke::new(self.width * mp * ctx.meta.zoom, color);
         let stroke_tip = Stroke::new(0., color);
         // if self.order == 0 {
-            // draw straight edge
+        // draw straight edge
 
-            let line = Shape::line_segment(
-                [
-                    ctx.meta.canvas_to_screen_pos(edge_start),
-                    ctx.meta.canvas_to_screen_pos(edge_end),
-                ],
-                stroke_edge,
-            );
-            if !ctx.is_directed {
-                return vec![line];
-            }
+        let line = Shape::line_segment(
+            [
+                ctx.meta.canvas_to_screen_pos(edge_start),
+                ctx.meta.canvas_to_screen_pos(edge_end),
+            ],
+            stroke_edge,
+        );
+        if !ctx.is_directed {
+            return vec![line];
+        }
 
-            let tip_start_1 = tip_end - mp * self.tip_size * rotate_vector(dir, self.tip_angle);
-            let tip_start_2 = tip_end - mp * self.tip_size * rotate_vector(dir, -self.tip_angle);
+        let tip_start_1 = tip_end - mp * self.tip_size * rotate_vector(dir, self.tip_angle);
+        let tip_start_2 = tip_end - mp * self.tip_size * rotate_vector(dir, -self.tip_angle);
 
-            // draw tips for directed edges
+        // draw tips for directed edges
 
-            let line_tip = Shape::convex_polygon(
-                vec![
-                    ctx.meta.canvas_to_screen_pos(tip_end),
-                    ctx.meta.canvas_to_screen_pos(tip_start_1),
-                    ctx.meta.canvas_to_screen_pos(tip_start_2),
-                ],
-                color,
-                stroke_tip,
-            );
-            return vec![line, line_tip];
+        let line_tip = Shape::convex_polygon(
+            vec![
+                ctx.meta.canvas_to_screen_pos(tip_end),
+                ctx.meta.canvas_to_screen_pos(tip_start_1),
+                ctx.meta.canvas_to_screen_pos(tip_start_2),
+            ],
+            color,
+            stroke_tip,
+        );
+        return vec![line, line_tip];
         // }
 
         // draw curved edge

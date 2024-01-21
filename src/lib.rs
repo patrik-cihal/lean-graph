@@ -5,20 +5,30 @@ use edge_shape::EdgeShape;
 use node_shape::NodeShape;
 use rfd::AsyncFileDialog;
 
-const STATIC_JSON_FILES: [&str; 7] = ["Nat.zero_add.json", "Nat.prime_of_coprime.json", "Topology.json", "Cardinal.cantor.json", "Continuous.deriv_integral.json", "fermatLastTheoremFour.json", "PFR_conjecture.json"];
+const STATIC_JSON_FILES: [&str; 7] = [
+    "Nat.zero_add.json",
+    "Nat.prime_of_coprime.json",
+    "Topology.json",
+    "Cardinal.cantor.json",
+    "Continuous.deriv_integral.json",
+    "fermatLastTheoremFour.json",
+    "PFR_conjecture.json",
+];
 pub const SERVER_ADDR: &str = "https://lean-graph.com";
 
 use std::{
-    collections::{BTreeMap, HashMap, BinaryHeap},
+    cmp::Reverse,
+    collections::{BTreeMap, BinaryHeap, HashMap},
+    f32::consts::PI,
     future::Future,
     sync::{Arc, RwLock},
-    time::Duration, f32::consts::PI, cmp::Reverse,
+    time::Duration,
 };
 
 use eframe::{App, CreationContext};
-use egui::{Color32, Pos2, Slider, Vec2, Visuals, Hyperlink, emath::align::center_size_in_rect};
+use egui::{emath::align::center_size_in_rect, Color32, Hyperlink, Pos2, Slider, Vec2, Visuals};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
-use petgraph::{stable_graph::StableGraph, graph::NodeIndex, EdgeType};
+use petgraph::{graph::NodeIndex, stable_graph::StableGraph, EdgeType};
 use rand::{random, Rng};
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +49,7 @@ pub struct Directed {}
 
 impl EdgeType for Directed {
     fn is_directed() -> bool {
-        true 
+        true
     }
 }
 
@@ -57,7 +67,7 @@ struct NodeData {
     name: String,
     references: Vec<String>,
     const_category: ConstCategory,
-    const_type: String
+    const_type: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -68,11 +78,11 @@ struct NodePayload {
     comp_color: ([f32; 3], f32),
     const_category: ConstCategory,
     size: f32,
-    const_type: String
+    const_type: String,
 }
 
 fn random_node_color() -> [f32; 3] {
-    [0.; 3].map(|_| (random::<f32>() / 3.)*2.)
+    [0.; 3].map(|_| (random::<f32>() / 3.) * 2.)
 }
 
 impl From<&NodeData> for NodePayload {
@@ -84,7 +94,7 @@ impl From<&NodeData> for NodePayload {
             comp_color: Default::default(),
             vel: Vec2::ZERO,
             size: ((value.references.len() + 1) as f32).sqrt(),
-            const_type: value.const_type.clone()
+            const_type: value.const_type.clone(),
         }
     }
 }
@@ -116,7 +126,7 @@ impl Default for ForceSettings {
             e_force: 0.001,
             b_force: 0.05,
             stiffness: 0.5,
-            r_size: 200.
+            r_size: 200.,
         }
     }
 }
@@ -149,7 +159,7 @@ impl Default for FilterSettings {
 
         Self {
             node_type_filter,
-            outer_edge_cnt_filter: 10
+            outer_edge_cnt_filter: 10,
         }
     }
 }
@@ -159,7 +169,7 @@ struct StoredData {
     g: G,
     force_settings: ForceSettings,
     filter_settings: FilterSettings,
-    coloring_settings: ColoringSettings
+    coloring_settings: ColoringSettings,
 }
 
 pub struct MApp {
@@ -178,8 +188,15 @@ impl MApp {
     pub fn new(ctx: &CreationContext<'_>, default_file_raw: String) -> Self {
         // setup font that support math characters
         let mut fonts = egui::FontDefinitions::default();
-        fonts.font_data.insert("noto_sans_math".into(), egui::FontData::from_static(include_bytes!("../static/NotoSansMath-Regular.ttf")));
-        fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "noto_sans_math".into());
+        fonts.font_data.insert(
+            "noto_sans_math".into(),
+            egui::FontData::from_static(include_bytes!("../static/NotoSansMath-Regular.ttf")),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "noto_sans_math".into());
         ctx.egui_ctx.set_fonts(fonts);
 
         let g = load_graph(default_file_raw);
@@ -193,7 +210,7 @@ impl MApp {
             filter_settings: Default::default(),
             coloring_settings: Default::default(),
             data_to_load: Default::default(),
-            fit_to_screen: Default::default()
+            fit_to_screen: Default::default(),
         }
     }
     fn color_nodes(&mut self) {
@@ -237,7 +254,11 @@ impl MApp {
         for &ni in &topo_sort {
             let color = self.fg.g.node_weight(ni).unwrap().payload().color;
             let size = self.fg.g[ni].payload().size;
-            let size = if self.fg.g[ni].selected() {size*SELECTED_MP} else {size};
+            let size = if self.fg.g[ni].selected() {
+                size * SELECTED_MP
+            } else {
+                size
+            };
             // add cur color to comp color
             let comp_color = self.fg.g[ni].payload_mut().comp_color;
             self.fg.g[ni].payload_mut().comp_color.0 = [
@@ -261,7 +282,9 @@ impl MApp {
     }
     fn simulate_force_graph(&mut self, dt: f32) {
         let mut indices = self.fg.g.node_indices().collect::<Vec<_>>();
-        if indices.len() == 0 { return };
+        if indices.len() == 0 {
+            return;
+        };
 
         let neighbors = indices
             .iter()
@@ -282,7 +305,6 @@ impl MApp {
                 let dis = dir.length();
                 let dir = dir.normalized();
 
-
                 let eacc = self.force_settings.e_force * dis * dis;
 
                 let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
@@ -297,7 +319,14 @@ impl MApp {
 
         // Simulate repulsion
         // Create a sliding range of size RANGE_SIZE, over the nodes
-        indices.sort_by(|&ni1, &ni2| self.fg.g[ni1].props().location.x.partial_cmp(&self.fg.g[ni2].props().location.x).unwrap());
+        indices.sort_by(|&ni1, &ni2| {
+            self.fg.g[ni1]
+                .props()
+                .location
+                .x
+                .partial_cmp(&self.fg.g[ni2].props().location.x)
+                .unwrap()
+        });
         let mut bh = BinaryHeap::<Reverse<(i64, NodeIndex<u32>)>>::new();
         for &ni in &indices {
             let pos = self.fg.g[ni].location();
@@ -319,13 +348,13 @@ impl MApp {
                     continue;
                 }
 
-                let racc = -(self.force_settings.r_force * (self.force_settings.r_size-dis));
+                let racc = -(self.force_settings.r_force * (self.force_settings.r_size - dis));
                 let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
 
-                let racc_dt = (racc*dt);
+                let racc_dt = (racc * dt);
 
                 self.fg.g[ni].payload_mut().vel += mr * racc_dt * dir;
-                self.fg.g[oni].payload_mut().vel += (1./mr) * racc_dt * (-dir);
+                self.fg.g[oni].payload_mut().vel += (1. / mr) * racc_dt * (-dir);
             }
 
             bh.push(Reverse((pos.x as i64, ni)));
@@ -344,11 +373,11 @@ impl MApp {
 
         let center_of_mass = center_of_mass.0;
         for &ni in &indices {
-            let dir =  center_of_mass - self.fg.g[ni].location().to_vec2();
+            let dir = center_of_mass - self.fg.g[ni].location().to_vec2();
             let dis = dir.length();
             let dir = dir.normalized();
 
-            let bacc = dis*self.force_settings.b_force;
+            let bacc = dis * self.force_settings.b_force;
             self.fg.g[ni].payload_mut().vel += bacc * dt * dir;
         }
 
@@ -356,13 +385,15 @@ impl MApp {
             let mut cvel = self.fg.g[ni].payload().vel;
             cvel = cvel * (1. - (self.force_settings.stiffness));
             const SPEED_LIMIT: f32 = 10000.;
-            cvel = if (cvel.length() > SPEED_LIMIT) {cvel.normalized()*SPEED_LIMIT} else {cvel};
+            cvel = if (cvel.length() > SPEED_LIMIT) {
+                cvel.normalized() * SPEED_LIMIT
+            } else {
+                cvel
+            };
             let pos = self.fg.g[ni].location();
             self.fg.node_mut(ni).unwrap().payload_mut().vel = cvel;
             self.fg.node_mut(ni).unwrap().set_location(pos + cvel * dt);
         }
-
-
     }
     fn draw_ui(&mut self, ctx: &eframe::egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -444,8 +475,7 @@ impl MApp {
                         let stored_data = serde_json::from_str::<StoredData>(&data_raw);
                         if let Ok(stored_data) = stored_data {
                             *data_to_load.write().unwrap() = Some(stored_data);
-                        }
-                        else {
+                        } else {
                             return;
                         }
                     })
@@ -453,7 +483,12 @@ impl MApp {
                 if ui.button("Save visualization").clicked() {
                     let data_to_store = serde_json::to_string(&self.save_viz()).unwrap();
                     spawn_local(async move {
-                        let Some(file_handle) = AsyncFileDialog::new().add_filter("Lean Graph", &["leangraph"]).set_file_name("untitled.leangraph").save_file().await else {
+                        let Some(file_handle) = AsyncFileDialog::new()
+                            .add_filter("Lean Graph", &["leangraph"])
+                            .set_file_name("untitled.leangraph")
+                            .save_file()
+                            .await
+                        else {
                             return;
                         };
                         file_handle.write(data_to_store.as_bytes()).await.unwrap();
@@ -491,10 +526,7 @@ impl MApp {
                     (50.)..=(1000.),
                 ));
                 ui.label("Center bounding");
-                ui.add(Slider::new(
-                    &mut self.force_settings.b_force,
-                    (0.)..=(0.5)
-                ));
+                ui.add(Slider::new(&mut self.force_settings.b_force, (0.)..=(0.5)));
                 ui.label("Stifness");
                 ui.add(Slider::new(&mut self.force_settings.stiffness, (0.)..=1.));
             });
@@ -513,34 +545,52 @@ impl MApp {
 
             ui.collapsing("Filter", |ui| {
                 ui.checkbox(
-                    self.filter_settings.node_type_filter.get_mut(&ConstCategory::Axiom).unwrap(),
+                    self.filter_settings
+                        .node_type_filter
+                        .get_mut(&ConstCategory::Axiom)
+                        .unwrap(),
                     "Axioms",
                 );
                 ui.checkbox(
-                    self.filter_settings.node_type_filter.get_mut(&ConstCategory::Theorem).unwrap(),
+                    self.filter_settings
+                        .node_type_filter
+                        .get_mut(&ConstCategory::Theorem)
+                        .unwrap(),
                     "Theorems",
                 );
                 ui.checkbox(
-                    self.filter_settings.node_type_filter
+                    self.filter_settings
+                        .node_type_filter
                         .get_mut(&ConstCategory::Definition)
                         .unwrap(),
                     "Definitions",
                 );
                 ui.checkbox(
-                    self.filter_settings.node_type_filter.get_mut(&ConstCategory::Other).unwrap(),
+                    self.filter_settings
+                        .node_type_filter
+                        .get_mut(&ConstCategory::Other)
+                        .unwrap(),
                     "Other",
                 );
                 ui.label("Max node out-degree");
-                ui.add(Slider::new(&mut self.filter_settings.outer_edge_cnt_filter, 1..=1000));
+                ui.add(Slider::new(
+                    &mut self.filter_settings.outer_edge_cnt_filter,
+                    1..=1000,
+                ));
             });
 
             ui.collapsing("Style", |ui| {
                 let dark_mode = ui.ctx().style().visuals.dark_mode;
-                if ui.button(format!("Toggle {} mode", if dark_mode {"light"} else {"dark"})).clicked() {
+                if ui
+                    .button(format!(
+                        "Toggle {} mode",
+                        if dark_mode { "light" } else { "dark" }
+                    ))
+                    .clicked()
+                {
                     if dark_mode {
                         ui.ctx().set_visuals(Visuals::light());
-                    }
-                    else {
+                    } else {
                         ui.ctx().set_visuals(Visuals::dark());
                     }
                 }
@@ -549,12 +599,14 @@ impl MApp {
                 }
             });
 
-
-            ui.allocate_space(ui.available_size()-Vec2::Y*30.);
+            ui.allocate_space(ui.available_size() - Vec2::Y * 30.);
 
             ui.horizontal(|ui| {
                 ui.label("Contact:");
-                ui.add(Hyperlink::from_label_and_url("GitHub", "https://github.com/patrik-cihal/lean-graph"));
+                ui.add(Hyperlink::from_label_and_url(
+                    "GitHub",
+                    "https://github.com/patrik-cihal/lean-graph",
+                ));
             });
         });
     }
@@ -605,8 +657,7 @@ impl App for MApp {
         if let Some(data_to_load) = data_to_load_write.take() {
             drop(data_to_load_write);
             self.load_stored_data(data_to_load);
-        }
-        else {
+        } else {
             drop(data_to_load_write);
         }
         self.update_filter_graph();
@@ -653,9 +704,9 @@ fn load_graph(default_file_raw: String) -> G {
 }
 
 fn random_location(size: f32) -> Pos2 {
-    let rnd_angle = random::<f32>()*2.*PI;
-    let rnd_dist = random::<f32>().sqrt()*size;
-    let pos =  Pos2::new(rnd_angle.cos(), rnd_angle.sin()) * rnd_dist;
+    let rnd_angle = random::<f32>() * 2. * PI;
+    let rnd_dist = random::<f32>().sqrt() * size;
+    let pos = Pos2::new(rnd_angle.cos(), rnd_angle.sin()) * rnd_dist;
     pos
 }
 
@@ -682,7 +733,6 @@ pub async fn read_raw_stored_data_file_dialog() -> Option<String> {
     let data_raw = file_handle.read().await;
     Some(String::from_utf8(data_raw).unwrap())
 }
-
 
 pub async fn read_graph_url(url: &str) -> Result<String, reqwest::Error> {
     let resp = reqwest::get(url).await?;

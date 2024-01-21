@@ -6,7 +6,7 @@ use egui::{
 };
 use egui_graphs::{DisplayNode, DrawContext, NodeProps};
 use petgraph::{stable_graph::IndexType, EdgeType};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{col_ft, ConstCategory, NodePayload};
 
