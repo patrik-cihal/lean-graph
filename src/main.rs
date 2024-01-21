@@ -1,4 +1,4 @@
-use lean_dependency_graph::MApp;
+use lean_graph::MApp;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {

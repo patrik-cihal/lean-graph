@@ -147,7 +147,6 @@ def serializeAndWriteToFile (source : Source) (depth : Nat) : TermElabM Unit := 
   let js ←  serializeList g
   let _ ← writeJsonToFile ((toString name).append ".json") js
 
-
 -- Edit and uncomment one of the lines below to get your .json file created in the current workspace folder
 
 -- #eval serializeAndWriteToFile (Source.Constant `(@Nat.add_zero)) 7

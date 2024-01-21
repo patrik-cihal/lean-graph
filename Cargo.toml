@@ -1,5 +1,5 @@
 [package]
-name = "lean-dependency-graph"
+name = "lean-graph"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
