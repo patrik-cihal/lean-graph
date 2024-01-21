@@ -26,10 +26,10 @@ use std::{
 };
 
 use eframe::{App, CreationContext};
-use egui::{emath::align::center_size_in_rect, Color32, Hyperlink, Pos2, Slider, Vec2, Visuals};
+use egui::{Color32, Hyperlink, Pos2, Slider, Vec2, Visuals};
 use egui_graphs::{Edge, GraphView, Node, SettingsInteraction, SettingsNavigation, SettingsStyle};
 use petgraph::{graph::NodeIndex, stable_graph::StableGraph, EdgeType};
-use rand::{random, Rng};
+use rand::{random};
 use serde::{Deserialize, Serialize};
 
 pub fn now() -> std::time::Duration {
@@ -351,7 +351,7 @@ impl MApp {
                 let racc = -(self.force_settings.r_force * (self.force_settings.r_size - dis));
                 let mr = self.fg.g[oni].payload().mass() / self.fg.g[ni].payload().mass();
 
-                let racc_dt = (racc * dt);
+                let racc_dt = racc * dt;
 
                 self.fg.g[ni].payload_mut().vel += mr * racc_dt * dir;
                 self.fg.g[oni].payload_mut().vel += (1. / mr) * racc_dt * (-dir);
@@ -385,7 +385,7 @@ impl MApp {
             let mut cvel = self.fg.g[ni].payload().vel;
             cvel = cvel * (1. - (self.force_settings.stiffness));
             const SPEED_LIMIT: f32 = 10000.;
-            cvel = if (cvel.length() > SPEED_LIMIT) {
+            cvel = if cvel.length() > SPEED_LIMIT {
                 cvel.normalized() * SPEED_LIMIT
             } else {
                 cvel
