@@ -7,7 +7,7 @@ Interactive visualization of dependencies for any theorem/definitions in your Le
 
 ## How to use
 
-### Run in your browser: [lean-graph.com](https://lean-graph.com/)
+### (NO LONGER SUPPORTED) Run in your browser: [lean-graph.com](https://lean-graph.com/)
 
 ### Run locally
 1. Get [Rustup](https://rustup.rs/)
