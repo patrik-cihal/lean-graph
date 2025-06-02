@@ -3,7 +3,7 @@ import Lean.Data.Json.FromToJson
 import Lean.Elab.BuiltinCommand
 import Lean.Meta.Basic
 import Lean.Message
-open Lean Elab Term Meta
+open Lean Elab Term Meta Std
 
 def getExpr (x : TermElabM Syntax) : TermElabM Expr := do
   let synt ← x
@@ -43,7 +43,7 @@ def getAllConstsFromConst (n : Name) : TermElabM (Array Name) := do
     | none => [].toArray
   let consts2 := type.getUsedConstants
   let res := consts1 ++ consts2
-  let set := HashSet.insertMany mkHashSet res
+  let set := HashSet.ofArray res
   return set.toArray
 
 def getAllConstsFromNamespace (n : String) : TermElabM (List Name) := do
@@ -81,12 +81,12 @@ def getUsedConstantGraph (names : List Name) (depth : Nat) : TermElabM (List (Na
     let g := newNodes.foldl (fun m p => m.insert p.fst p.snd.toList) g
     let newOuterLayer := newNodes.foldl (fun (set : HashSet Name) (node : Name × Array Name) =>
       let set := set.insertMany node.snd;
-      set) mkHashSet
+      set) HashSet.emptyWithCapacity
     let newOuterLayer := newOuterLayer.toList.filter (fun n => !(g.contains n))
 
     return BFSState.mk g newOuterLayer
   )
-    (BFSState.mk mkHashMap names)
+    (BFSState.mk HashMap.emptyWithCapacity names)
 
 
 
@@ -147,7 +147,5 @@ def serializeAndWriteToFile (source : Source) (depth : Nat) : TermElabM Unit := 
   let js ←  serializeList g
   let _ ← writeJsonToFile ((toString name).append ".json") js
 
--- Edit and uncomment one of the lines below to get your .json file created in the current workspace folder
-
--- #eval serializeAndWriteToFile (Source.Constant `(@Nat.add_zero)) 7
+-- #eval serializeAndWriteToFile (Source.Constant `(@Nat.add_assoc)) 7
 -- #eval serializeAndWriteToFile (Source.Namespace "Nat") 2
